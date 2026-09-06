@@ -1,0 +1,106 @@
+# Experimental structures this project builds on.
+#
+# The rule carried over from the kinetic model: nothing enters the pipeline
+# without a source and a stated confidence. A structure is not a free input —
+# resolution, missing regions, and construct mutations all propagate into the
+# simulation, so they are recorded here rather than discovered later.
+#
+# confidence:
+#   direct     — SARS-CoV-2, the exact assembly we simulate
+#   construct  — SARS-CoV-2, but a stabilised or truncated construct
+#   analogous  — related coronavirus or homologous protein
+#
+# Fetch with: python -m vervain.structures fetch <id>
+
+schema_version: 1
+
+structures:
+
+  6VSB:
+    name: SARS-CoV-2 spike prefusion trimer, one RBD up
+    method: cryo-EM
+    resolution_a: 3.46
+    confidence: construct
+    source: "Wrapp et al., Science 2020;367:1260-1263"
+    doi: 10.1126/science.abb2507
+    used_for: >
+      The canonical prefusion ectodomain. First published SARS-CoV-2 spike
+      structure and still the common reference for the up-RBD conformation.
+    caveats: >
+      2P stabilised construct (K986P, V987P) with the furin site mutated and a
+      foldon trimerisation tag. Ectodomain only — no stalk, no transmembrane
+      anchor. Glycans are largely unresolved.
+
+  6VXX:
+    name: SARS-CoV-2 spike prefusion trimer, closed
+    method: cryo-EM
+    resolution_a: 2.80
+    confidence: construct
+    source: "Walls et al., Cell 2020;181:281-292"
+    doi: 10.1016/j.cell.2020.02.058
+    used_for: >
+      The closed all-RBD-down state. Starting point for the receptor-naive
+      spike before ACE2 engagement.
+    caveats: >
+      Stabilised ectodomain construct; stalk and TM absent. Pairs with 6VYB,
+      which is the same construct in the one-RBD-up state.
+
+  6VYB:
+    name: SARS-CoV-2 spike prefusion trimer, one RBD up
+    method: cryo-EM
+    resolution_a: 3.20
+    confidence: construct
+    source: "Walls et al., Cell 2020;181:281-292"
+    doi: 10.1016/j.cell.2020.02.058
+    used_for: >
+      The open state matched to 6VXX. Having both from one construct makes the
+      open/closed comparison a controlled one.
+    caveats: Same construct limitations as 6VXX.
+
+  6M0J:
+    name: SARS-CoV-2 RBD bound to human ACE2
+    method: X-ray
+    resolution_a: 2.45
+    confidence: direct
+    source: "Lan et al., Nature 2020;581:215-220"
+    doi: 10.1038/s41586-020-2180-2
+    used_for: >
+      The receptor-binding interface itself. Defines the contact geometry the
+      approach simulation has to reproduce, and the reference for any
+      interface-restrained or steered run.
+    caveats: >
+      Isolated RBD plus ACE2 peptidase domain. No membrane, no full spike, no
+      ACE2 dimerisation partner.
+
+  6M17:
+    name: ACE2-B0AT1 complex with SARS-CoV-2 RBD
+    method: cryo-EM
+    resolution_a: 2.90
+    confidence: direct
+    source: "Yan et al., Science 2020;367:1444-1448"
+    doi: 10.1126/science.abb2762
+    used_for: >
+      Full-length ACE2 including the transmembrane helix and its dimeric
+      arrangement — what we need to embed a receptor in a membrane rather than
+      float an ectodomain.
+    caveats: >
+      ACE2 is complexed with B0AT1, which ciliated airway cells do not express
+      at meaningful levels. B0AT1 is stripped before use; check that the ACE2
+      TM helices remain reasonable without it.
+
+# Structures we know we need and have not pinned yet.
+open_questions:
+  - >
+    Full-length spike including the stalk and its three hinges. The cryo-ET
+    work (Turonova et al., Science 2020, doi 10.1126/science.abd5223) is the
+    source for hinge flexibility, but the deposited maps are low resolution;
+    decide whether to graft a modelled stalk onto 6VXX or use a published
+    full-length model.
+  - >
+    Glycan shield. Amaro's fully glycosylated spike models are the standard
+    starting point rather than rebuilding site-by-site occupancy. Locate the
+    deposited coordinates and record them here before building.
+  - >
+    Airway plasma membrane lipid composition. Every membrane in the pipeline
+    depends on it and it is currently unsourced — the direct analogue of the
+    compartment-volume liability in the old kinetic model.

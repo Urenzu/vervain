@@ -1,79 +1,57 @@
 # Vervain
 
-Kinetic simulation of SARS-CoV-2 infection in a single ciliated human airway
-epithelial cell, over ~24 simulated hours, with the innate immune response in the
-loop. See [PLAN.md](PLAN.md) for the architecture and
-[docs/validation.md](docs/validation.md) for what grades it.
+Coarse-grained molecular dynamics of SARS-CoV-2 entry at an airway cell
+surface, rendered in the browser.
 
-> **v0 is uncalibrated.** Every parameter is `estimated` and unverified against
-> literature. The model reproduces the *shape* of infection and a sharp
-> productive/abortive boundary, but its numbers are not results. Calibration
-> against the datasets in `docs/validation.md` is the next milestone.
+Every position on screen comes out of an integrator. Nothing is animated.
 
-## Platform
+## What it is
 
-**The backend is Linux-native.** Verified on Ubuntu 26.04 with CPython 3.14 using
-manylinux_2_28 wheels — no compiler and no system BioNetGen install required.
-macOS runs the same code path. The source has no Windows-specific assumptions and
-works there too, but Linux is the reference platform: it is what the numbers below
-were produced on and what CI should run.
+A virion meeting a cell is one of the most-illustrated events in biology and
+almost none of those illustrations are simulations. They are authored — the
+spikes are rigid, the surface is bare, the motion is eased. Real spikes wave on
+three-hinged stalks, they are buried under a glycan shield that is roughly 40%
+of their surface area, and at that scale nothing glides because viscosity
+dominates inertia.
 
-BioNetGen is a hard runtime dependency — PySB shells out to it to generate the
-reaction network, and cannot produce ODEs without it. The `bionetgen` wheel ships
-prebuilt binaries for all three platforms, and `ensure_bngpath()` in
-`sim/vervain/solve/engine.py` selects the right one at import time. Set `BNGPATH`
-only if you want to override that.
+This simulates that instead of drawing it.
 
-## Running it
+## What it is not
 
-```bash
-make setup        # venv + Python deps; prints the BioNetGen path it resolved
-make web-setup    # frontend deps
-
-make serve        # terminal 1 — solver + websocket server (~30 s to pre-warm)
-make web          # terminal 2 — http://localhost:5173
-```
-
-Other targets:
-
-```bash
-make test         # Python test suite, including the parameter-provenance guarantees
-make typecheck    # frontend
-make check        # both — what CI runs
-make sweep        # interferon sweep printed against the published validation targets
-```
-
-Drag **interferon pretreatment**. Below ~10,000 ISG copies the cell goes
-productive and sheds virions from the apical surface; above ~20,000 it clears the
-genome and the infection is abortive. The boundary between those is sharp.
+Entry end to end. MARTINI reaches microseconds; entry takes seconds. The parts
+that fit inside a microsecond are simulated unbiased, the parts that do not are
+steered, and the difference is labelled. See [docs/pipeline.md](docs/pipeline.md)
+for the timescale table and what it rules out.
 
 ## Layout
 
-```
-sim/vervain/
-  model/cell_v0.py      the kinetics: entry -> replication -> assembly -> egress,
-                        plus RIG-I/IRF3/IFN/ISG and the nsp1 + ORF6 antagonists
-  params/params.yaml    every constant, with units, compartment, confidence, source
-  params/loader.py      p("name") - the only way a number reaches the model
-  solve/engine.py       PySB -> BioNetGen -> SBML -> libRoadRunner (CVODE / Gillespie)
-  server/protocol.py    Seam A: the state frame. No coordinate crosses this line.
-  server/app.py         websocket streaming, run cache, slider pre-warm
-  validate/sweep.py     the sweep, checked against docs/validation.md
-web/src/
-  net/                  protocol mirror + client
-  instancer/            Seam B: counts -> positions. The ONLY place a position is invented.
-  render/CellView.tsx   Three.js instanced spheres. Knows nothing above the instancer.
-tests/                  parameter provenance guarantees
-```
+    sim/vervain/        the simulation pipeline (Python, runs under WSL)
+      structures.yaml   experimental structures, with sources and caveats
+      structures.py     fetch from RCSB, report chains / gaps / glycans
+    scripts/            environment setup
+    web/                the viewer (React, Three.js)
+    docs/pipeline.md    stages, timescales, and the known liabilities
 
-## The two rules
+## Getting started
 
-1. **Counts are modeled; positions are illustrative.** The solver emits molecule
-   counts and simulated time, never a coordinate. Everything spatial is invented
-   client-side by the instancer, and the UI says so on screen at all times.
-2. **No bare constants.** Every rate lives in `params.yaml` with units, a
-   compartment, a confidence flag and a source. `tests/test_param_provenance.py`
-   fails the build if a model parameter is missing from the registry.
+The pipeline runs under WSL. GROMACS and martinize2 assume a POSIX toolchain.
 
-Both exist so the solver can later become spatially-resolved RDME and the renderer
-can become raw WebGPU without either change touching the other.
+    make setup          # venv and Python dependencies
+    make catalogue      # what structures the project builds on
+    make structures     # download them
+    make doctor         # what this machine's toolchain can actually do
+
+For production runs you need a GROMACS built for this hardware:
+
+    make gromacs
+
+Ubuntu's packaged `gromacs` is compiled with GPU support disabled and SIMD
+pinned to SSE4.1. It is fine for assembling and minimising a system and close
+to useless for a trajectory.
+
+## Provenance
+
+Nothing enters the pipeline without a source and a stated confidence —
+structures, lipid compositions, force-field choices alike. Inputs that are
+currently guesses are written down as liabilities in `structures.yaml` under
+`open_questions` rather than quietly defaulted.

@@ -1,12 +1,28 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
+
+# Node
 node_modules/
 web/dist/
-.bng-tmp/
-*.bngl
-*.net
-.env
 web/tsconfig.tsbuildinfo
-.variate/
+
+# Local tooling
+.env
 .claude/
+.variate/
+
+# Structures and simulation output. The catalogue in sim/vervain/structures.yaml
+# is the tracked artefact; coordinates and trajectories are not — they are
+# large, reproducible from the catalogue plus the build scripts, and would
+# swamp the repo.
+data/
+*.xtc
+*.trr
+*.edr
+*.cpt
+*.tpr
+*.log
+step*.pdb
+\#*\#
