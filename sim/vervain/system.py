@@ -272,7 +272,7 @@ def add_ions(solvated: Path, work: Path) -> Path:
     return ionised
 
 
-def build(pdb_id: str, chains: list[str], name: str) -> Path:
+def build(pdb_id: str, chains: list[str], name: str, margin_nm: float = 1.2) -> Path:
     if not forcefield.available():
         raise SystemExit(
             "Martini force field missing. Run: python -m vervain.forcefield fetch"
@@ -285,7 +285,7 @@ def build(pdb_id: str, chains: list[str], name: str) -> Path:
     prepared = prepare(pdb_id, chains, work)
     cg = martinize(prepared, work)
     _rewrite_topology(work)
-    solvated = solvate(cg, work)
+    solvated = solvate(cg, work, margin_nm=margin_nm)
     system = add_ions(solvated, work)
 
     print(f"\n  {system}")
@@ -301,9 +301,13 @@ def main(argv: list[str] | None = None) -> int:
     p_build.add_argument("--chains", default="A,E",
                          help="comma-separated; 6M0J is A=ACE2, E=RBD")
     p_build.add_argument("--name", default="rbd-ace2")
+    p_build.add_argument("--margin", type=float, default=1.2,
+                         help="solvent margin in nm. A pull needs far more than "
+                              "an equilibrium run: the complex has to be able to "
+                              "come apart without touching its own periodic image.")
 
     args = parser.parse_args(argv)
-    build(args.pdb, [c.strip() for c in args.chains.split(",")], args.name)
+    build(args.pdb, [c.strip() for c in args.chains.split(",")], args.name, args.margin)
     return 0
 
 

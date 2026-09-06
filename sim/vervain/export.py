@@ -26,8 +26,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from vervain import beads as beadlib
+from vervain import pullcurve
 from vervain.structures import REPO_ROOT
-from vervain.system import SYSTEMS_DIR, _run, gmx_binary
+from vervain.system import MDP_DIR, SYSTEMS_DIR, _run, gmx_binary
 
 SCHEMA = "vervain.traj/1"
 VIEWER_DIR = REPO_ROOT / "web" / "public" / "traj"
@@ -56,7 +57,7 @@ class BeadGroup:
     radiusNm: float
 
 
-def _protein_only_trajectory(work: Path) -> tuple[Path, Path]:
+def _protein_only_trajectory(work: Path, stage: str) -> tuple[Path, Path]:
     """A protein-only trajectory with each molecule made whole.
 
     `-pbc whole` and nothing else. The obvious choice, `-pbc mol -center`,
@@ -68,10 +69,12 @@ def _protein_only_trajectory(work: Path) -> tuple[Path, Path]:
     `_join_groups` below, where the box vectors are available per frame.
     """
     gmx = gmx_binary()
-    xtc = work / "md.xtc"
-    tpr = work / "md.tpr"
+    xtc = work / f"{stage}.xtc"
+    tpr = work / f"{stage}.tpr"
     if not xtc.exists():
-        raise SystemExit(f"no trajectory at {xtc}. Run: python -m vervain.run all")
+        raise SystemExit(
+            f"no trajectory at {xtc}. Run: python -m vervain.run {stage if stage == 'pull' else 'all'}"
+        )
 
     out_xtc = work / "view.xtc"
     out_gro = work / "view.gro"
@@ -198,12 +201,12 @@ def _bead_properties(work: Path, groups: list[BeadGroup]) -> tuple[list[float], 
     return radii, chemistry, palette
 
 
-def export(name: str) -> Path:
+def export(name: str, stage: str = "md") -> Path:
     import MDAnalysis as mda
     import numpy as np
 
     work = SYSTEMS_DIR / name
-    gro, xtc = _protein_only_trajectory(work)
+    gro, xtc = _protein_only_trajectory(work, stage)
 
     universe = mda.Universe(str(gro), str(xtc))
     beads = len(universe.atoms)
@@ -214,7 +217,7 @@ def export(name: str) -> Path:
     # MDAnalysis works in angstrom; everything downstream is nm.
     box_nm = [float(v) / 10.0 for v in universe.dimensions[:3]]
 
-    print(f"exporting {name}")
+    print(f"exporting {name} ({stage})")
     print(f"  frames     {frames}")
     print(f"  beads      {beads}")
     print(f"  box        {box_nm[0]:.2f} x {box_nm[1]:.2f} x {box_nm[2]:.2f} nm")
@@ -297,6 +300,27 @@ def export(name: str) -> Path:
         "chemistryPalette": palette,
         "rmsfNm": [round(float(v), 4) for v in fluctuation],
     }
+    # A pull is only half a result without the force it took. Resampled onto the
+    # trajectory's own frame times so the viewer can show a marker moving along
+    # the curve as the complex comes apart, rather than two unrelated plots.
+    curve = pullcurve.read_pull(work, pullcurve.rate_from_mdp(work / "pull_scaled.mdp"
+                                                             if (work / "pull_scaled.mdp").exists()
+                                                             else MDP_DIR / "pull.mdp"))
+    if curve is not None:
+        manifest["pull"] = {
+            "rateNmPerNs": curve.rate_nm_per_ns,
+            "ruptureForcePn": round(curve.rupture_force_pn, 1),
+            "ruptureTimePs": round(curve.rupture_time_ps, 1),
+            "ruptureExtensionNm": round(curve.rupture_extension_nm, 3),
+            "timePs": [round(t, 1) for t in curve.time_ps],
+            "extensionNm": [round(v, 4) for v in curve.extension_nm],
+            "forcePn": [round(v, 2) for v in curve.force_pn],
+        }
+        print(f"  rupture    {curve.rupture_force_pn:.0f} pN at "
+              f"{curve.rupture_time_ps / 1000:.1f} ns, "
+              f"extension {curve.rupture_extension_nm:.2f} nm")
+        print(f"  pull rate  {curve.rate_nm_per_ns:.2f} nm/ns")
+
     (VIEWER_DIR / "manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
@@ -310,8 +334,10 @@ def export(name: str) -> Path:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vervain.export", description=__doc__)
     parser.add_argument("--name", default="rbd-ace2")
+    parser.add_argument("--stage", default="md", choices=["md", "pull"],
+                        help="which trajectory to export")
     args = parser.parse_args(argv)
-    export(args.name)
+    export(args.name, args.stage)
     return 0
 
 

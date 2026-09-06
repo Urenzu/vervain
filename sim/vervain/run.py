@@ -15,14 +15,21 @@ import shutil
 import time
 from pathlib import Path
 
+from vervain import beads as beadlib
 from vervain.system import MDP_DIR, SYSTEMS_DIR, _run, gmx_binary
 
 # Martini's non-solvent bead names. Everything else in the box is protein.
 SOLVENT_BEADS = frozenset({"W", "WF", "NA", "CL", "ION"})
 
+NL = chr(10)
 
-def make_index(gro: Path, ndx: Path) -> tuple[int, int]:
-    """Write Protein and Solvent groups.
+
+def make_index(gro: Path, ndx: Path, work: Path | None = None) -> tuple[int, int]:
+    """Write Protein and Solvent groups, plus Anchor/Pulled for two molecules.
+
+    Anchor and Pulled are named for their role, not for ACE2 and the RBD. A
+    pull is a generic two-body assay and this pipeline is not COVID-specific;
+    baking those names in here would make it so.
 
     Built directly from the coordinate file rather than driven through
     `gmx make_ndx`, whose group numbering shifts with the system's contents —
@@ -45,7 +52,20 @@ def make_index(gro: Path, ndx: Path) -> tuple[int, int]:
         ]
         return f"[ {name} ]\n" + "\n".join(rows) + "\n"
 
-    ndx.write_text(block("Protein", protein) + block("Solvent", solvent), encoding="utf-8")
+    text = block("Protein", protein) + block("Solvent", solvent)
+
+    # Split the protein by molecule, using the topologies martinize2 wrote.
+    if work is not None:
+        sizes = []
+        index = 0
+        while (work / ("molecule_%d.itp" % index)).exists():
+            sizes.append(len(beadlib.read_topology(work / ("molecule_%d.itp" % index))))
+            index += 1
+        if len(sizes) == 2 and sum(sizes) == len(protein):
+            text += block("Anchor", protein[: sizes[0]])
+            text += block("Pulled", protein[sizes[0]:])
+
+    ndx.write_text(text, encoding="utf-8")
     return len(protein), len(solvent)
 
 
@@ -131,6 +151,60 @@ def stage(
     return out
 
 
+def _scaled_mdp(source: Path, work: Path, ns: float, tag: str) -> Path:
+    """A copy of an mdp with nsteps set for `ns` nanoseconds at dt = 20 fs."""
+    steps = int(ns * 1000 / 0.020)
+    out = work / (tag + "_scaled.mdp")
+    out.write_text(
+        NL.join(
+            "nsteps                 = %d" % steps
+            if line.strip().startswith("nsteps") else line
+            for line in source.read_text(encoding="utf-8").splitlines()
+        ) + NL,
+        encoding="utf-8",
+    )
+    return out
+
+
+def run_pull(name: str, ns: float | None, gpu: bool = True) -> Path:
+    """Steered MD: drag the second molecule off the first, recording the force.
+
+    This is the run with a beginning and an end. An equilibrium trajectory of a
+    stable complex looks the same at the first frame and the last, correctly so
+    -- the interface does not come apart on its own. Pulling makes it, and the
+    force required is a number that can be compared across variants.
+    """
+    work = SYSTEMS_DIR / name
+    system = work / "system.gro"
+    if not system.exists():
+        raise SystemExit(name + ": no system.gro. Run: python -m vervain.system build")
+
+    print("pulling " + name + NL)
+    ndx = work / "index.ndx"
+    n_protein, n_solvent = make_index(system, ndx, work)
+    if "[ Anchor ]" not in ndx.read_text(encoding="utf-8"):
+        raise SystemExit(
+            name + ": could not split the protein into two molecules, so there is "
+            "nothing to pull apart. A pull needs exactly two."
+        )
+    print("  index      %d protein, %d solvent beads" % (n_protein, n_solvent))
+
+    em = stage("em", work, MDP_DIR / "em.mdp", system, gpu=False)
+    eq = stage("eq", work, MDP_DIR / "eq.mdp", em,
+               gpu=gpu, restrained=True, restraint_ref=em)
+
+    mdp = MDP_DIR / "pull.mdp"
+    if ns is not None:
+        mdp = _scaled_mdp(mdp, work, ns, "pull")
+
+    out = stage("pull", work, mdp, eq, gpu=gpu)
+    print(NL + "  " + str(work / "pull.xtc"))
+    force = work / "pullf.xvg"
+    if force.exists():
+        print("  " + str(force))
+    return out
+
+
 def run_all(name: str, ns: float | None, gpu: bool = True) -> Path:
     work = SYSTEMS_DIR / name
     system = work / "system.gro"
@@ -139,7 +213,7 @@ def run_all(name: str, ns: float | None, gpu: bool = True) -> Path:
 
     print(f"running {name}\n")
     ndx = work / "index.ndx"
-    n_protein, n_solvent = make_index(system, ndx)
+    n_protein, n_solvent = make_index(system, ndx, work)
     print(f"  index      {n_protein} protein, {n_solvent} solvent beads")
 
     em = stage("em", work, MDP_DIR / "em.mdp", system, gpu=False)
@@ -151,18 +225,7 @@ def run_all(name: str, ns: float | None, gpu: bool = True) -> Path:
 
     md_mdp = MDP_DIR / "md.mdp"
     if ns is not None:
-        # dt is 20 fs, so steps = ns / 20 fs.
-        steps = int(ns * 1000 / 0.020)
-        scratch = work / "md_scaled.mdp"
-        scratch.write_text(
-            "\n".join(
-                f"nsteps                 = {steps}" if line.strip().startswith("nsteps")
-                else line
-                for line in md_mdp.read_text(encoding="utf-8").splitlines()
-            ) + "\n",
-            encoding="utf-8",
-        )
-        md_mdp = scratch
+        md_mdp = _scaled_mdp(md_mdp, work, ns, "md")
 
     md = stage("md", work, md_mdp, eq, gpu=gpu)
     print(f"\n  {work / 'md.xtc'}")
@@ -171,7 +234,7 @@ def run_all(name: str, ns: float | None, gpu: bool = True) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vervain.run", description=__doc__)
-    parser.add_argument("command", choices=["all"], nargs="?", default="all")
+    parser.add_argument("command", choices=["all", "pull"], nargs="?", default="all")
     parser.add_argument("--name", default="rbd-ace2")
     parser.add_argument("--ns", type=float, default=None,
                         help="production length in nanoseconds (default: mdp value)")
@@ -181,7 +244,10 @@ def main(argv: list[str] | None = None) -> int:
     if not shutil.which("mkdssp"):
         pass  # not needed at run time; only reported by doctor
 
-    run_all(args.name, args.ns, gpu=not args.cpu)
+    if args.command == "pull":
+        run_pull(args.name, args.ns, gpu=not args.cpu)
+    else:
+        run_all(args.name, args.ns, gpu=not args.cpu)
     return 0
 
 

@@ -1,0 +1,73 @@
+; Steered MD: drag the RBD off ACE2 at constant velocity and record the force.
+;
+; This is the one run that has a beginning and an end. Fifty nanoseconds of a
+; stable interface looks the same at frame 1 and frame 1000 -- correctly, since
+; the complex does not come apart on its own. Pulling makes it come apart, and
+; the force needed to do it is a number worth having.
+;
+; The rate is fast. At 0.15 nm/ns the complex is dragged apart far quicker than
+; anything physical, so the rupture force here is an upper bound and a relative
+; measure -- fine for comparing variants under identical conditions, not a
+; binding free energy. Getting the latter needs umbrella sampling along this
+; same coordinate, which this run generates the starting frames for.
+
+integrator             = md
+dt                     = 0.020
+nsteps                 = 1000000        ; 20 ns
+nstxout-compressed     = 2500           ; a frame every 50 ps
+compressed-x-grps      = Protein
+nstlog                 = 10000
+nstenergy              = 10000
+
+cutoff-scheme          = Verlet
+nstlist                = 20
+ns_type                = grid
+pbc                    = xyz
+verlet-buffer-tolerance = 0.005
+
+coulombtype            = reaction-field
+rcoulomb               = 1.1
+epsilon_r              = 15
+epsilon_rf             = 0
+vdw-type               = cutoff
+vdw-modifier           = Potential-shift-verlet
+rvdw                   = 1.1
+
+tcoupl                 = v-rescale
+tc-grps                = Protein Solvent
+tau_t                  = 1.0 1.0
+ref_t                  = 310 310
+
+pcoupl                 = parrinello-rahman
+pcoupltype             = isotropic
+tau_p                  = 12.0
+compressibility        = 3e-4
+ref_p                  = 1.0
+
+gen_vel                = no
+continuation            = yes
+
+; --- the pull -------------------------------------------------------------
+; The first molecule is held; the second is dragged away along the vector
+; joining them.
+; `geometry = distance` follows that vector as it moves, rather than a fixed
+; axis, so the pull stays aligned with the interface as the complex reorients.
+pull                    = yes
+pull-ngroups            = 2
+pull-ncoords            = 1
+pull-group1-name        = Anchor
+pull-group2-name        = Pulled
+pull-coord1-type        = umbrella
+pull-coord1-geometry    = distance
+pull-coord1-groups      = 1 2
+pull-coord1-dim         = Y Y Y
+pull-coord1-start       = yes           ; reference begins at the bound distance
+pull-coord1-rate        = 0.00015       ; nm/ps = 0.15 nm/ns
+pull-coord1-k           = 1000          ; kJ/mol/nm^2
+pull-nstxout            = 500           ; every 10 ps
+pull-nstfout            = 500
+
+; Without centre-of-mass removal the pair drifts apart symmetrically, which
+; measures nothing about the interface.
+comm-mode              = Linear
+comm-grps              = Protein Solvent

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ForceCurve } from "./render/ForceCurve";
 import { TrajectoryView } from "./render/TrajectoryView";
 import { flexColor, loadManifest, type ColorMode, type Manifest } from "./traj/manifest";
 
@@ -185,6 +186,29 @@ export default function App() {
                   ))}
                 </div>
               </section>
+
+              {manifest.pull && (
+                <section className="rail__block">
+                  <span className="block__label">Pull force</span>
+                  <div className="block__readout">
+                    <span className="block__value">
+                      {manifest.pull.ruptureForcePn.toFixed(0)} pN
+                    </span>
+                    <span className="block__unit">rupture</span>
+                  </div>
+                  <ForceCurve pull={manifest.pull} timePs={elapsed} />
+                  <p className="block__note">
+                    Peak at {(manifest.pull.ruptureTimePs / 1000).toFixed(1)} ns,
+                    {" "}{manifest.pull.ruptureExtensionNm.toFixed(2)} nm extension,
+                    pulled at {manifest.pull.rateNmPerNs.toFixed(2)} nm/ns.
+                  </p>
+                  <p className="block__note">
+                    That rate is far faster than anything physical, so this is an
+                    upper bound and a relative measure — good for comparing
+                    variants pulled identically, not a binding free energy.
+                  </p>
+                </section>
+              )}
 
               <section className="rail__block">
                 <span className="block__label">Colour</span>

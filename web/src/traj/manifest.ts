@@ -39,6 +39,19 @@ export interface BeadGroup {
   radiusNm: number;
 }
 
+/** Present only for a steered run. Force is in piconewtons, the unit
+ *  single-molecule force work reports, so the number is comparable to an
+ *  optical trap or an AFM pull rather than only to itself. */
+export interface PullData {
+  rateNmPerNs: number;
+  ruptureForcePn: number;
+  ruptureTimePs: number;
+  ruptureExtensionNm: number;
+  timePs: number[];
+  extensionNm: number[];
+  forcePn: number[];
+}
+
 export interface Manifest {
   schema: string;
   /** Simulated time between stored frames. Not wall-clock, not timestep. */
@@ -65,6 +78,9 @@ export interface Manifest {
    *  after superposition. This is what distinguishes a rigid core from a
    *  mobile loop when every frame otherwise looks alike. */
   rmsfNm: number[];
+
+  /** Absent for an equilibrium trajectory. */
+  pull?: PullData;
 }
 
 /** Rigid to mobile. Deliberately not a rainbow: a sequential quantity needs a
