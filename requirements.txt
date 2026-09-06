@@ -1,0 +1,9 @@
+pysb==1.17.0
+bionetgen>=0.9
+python-libsbml>=5.20
+libroadrunner==2.10.0
+numpy>=2.0
+scipy>=1.14
+pyyaml>=6.0
+websockets>=13.0
+pytest>=8.0

@@ -1,0 +1,12 @@
+[project]
+name = "vervain"
+version = "0.1.0"
+description = "Kinetic simulation of SARS-CoV-2 infection in a single airway epithelial cell"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["sim"]
+
+[tool.pytest.ini_options]
+pythonpath = ["sim"]
+testpaths = ["tests"]

@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+web/dist/
+.bng-tmp/
+*.bngl
+*.net
+.env
+web/tsconfig.tsbuildinfo
