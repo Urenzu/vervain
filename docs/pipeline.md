@@ -83,14 +83,61 @@ GROMACS. See `scripts/setup-gromacs-cuda.sh` — the Ubuntu package is built wit
 GPU support disabled and SIMD pinned to SSE4.1, which on an Ampere card leaves
 most of the machine idle.
 
-Target hardware is a laptop RTX 3060, 6 GB. That sizes the work:
+Target hardware is a laptop RTX 3060, 6 GB, on an i7-11800H.
+
+### Sizing, and where the cost actually is
+
+Counted at MARTINI 3 resolution — ~2.3 beads per residue, 8.35 water beads per
+nm³, ~12 beads per phospholipid:
+
+| system | protein | lipid | water | total |
+| --- | ---: | ---: | ---: | ---: |
+| A · spike ectodomain in water, 18×16×16 nm | 6.7k (25%) | — | 20k (75%) | **27k** |
+| B · spike + stalk/TM in a 25×25 nm membrane | 7.3k (5%) | 23k (16%) | 116k (79%) | **146k** |
+| C · single RBD + ACE2 domain, 11×9×9 nm | 1.8k (42%) | — | 2.5k (58%) | **4.3k** |
+
+All three fit comfortably. The 6 GB card is not the binding constraint at this
+stage; wall-clock is.
+
+**The protein is 5% of the cost and 100% of the science.** Coarsening it below
+MARTINI's ~4 heavy atoms per bead — a Cα-only Gō model, say — would save
+single-digit percent of the system while destroying the side-chain chemistry at
+the ACE2 interface, which is the thing an entry simulation exists to resolve.
+Not a trade worth making.
+
+**Water is 75–79%.** That is the only place real savings live, and it comes with
+a cost that matters here: Dry Martini's implicit solvent removes hydrodynamics,
+substituting Langevin friction for solvent coupling. For a run whose entire
+purpose is watching the spike's hinges move realistically, that changes the
+character of the motion being observed. Reasonable for equilibrating a membrane
+cheaply; not for production hinge dynamics.
+
+So the levers on this hardware, in order of value:
+
+1. **Full GPU offload.** GROMACS 2025 can place nonbonded, PME, bonded, and the
+   update/constraint step on the GPU (`-nb gpu -pme gpu -bonded gpu -update gpu`).
+   On a single-GPU machine this is the largest available win and it costs
+   nothing but flags.
+2. **Replicas over length.** System C is 34× smaller than B. For anything whose
+   answer is a distribution — does this RBD engage, and how often — twenty short
+   independent runs are worth more than one long one, and they parallelise
+   across time rather than across hardware you do not have.
+3. **Box discipline.** Padding is water, and water is 79%.
+4. **Timestep.** MARTINI 3 runs at 20 fs; lipid-dominated systems often take 25–30.
 
 | system | scale | feasible here |
 | --- | --- | --- |
-| spike ectodomain + membrane patch | ~300–500k beads | yes |
-| ACE2 in an opposing membrane | ~200k beads | yes |
+| A / B / C above | 4k – 150k beads | yes |
 | approach, two membranes | ~1M beads | tight |
 | whole virion, ~24 spikes | ~10–20M beads | no |
+
+### Filesystem
+
+The repo lives on `/mnt/c`, and every file operation from WSL crosses the 9p
+boundary into Windows. A venv created there takes minutes rather than seconds.
+Environments live under `$HOME/.venvs` on the Linux side and are symlinked in;
+trajectories should go under `$VERVAIN_DATA` for the same reason, or GROMACS
+spends its time on I/O rather than on integration.
 
 ### 6 · Export and view
 

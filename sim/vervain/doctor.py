@@ -72,7 +72,16 @@ def check_gpu() -> None:
 
 def check_gromacs() -> None:
     print("\ngromacs")
-    gmx = os.environ.get("VERVAIN_GMX") or shutil.which("gmx") or shutil.which("gmx_mpi")
+    # Prefer our own build over whatever apt put on PATH: the packaged binary
+    # is the one with GPU support disabled, and it shadows nothing, so a bare
+    # `which gmx` silently reports the slow one.
+    built = Path.home() / "opt" / "gromacs" / "bin" / "gmx"
+    gmx = (
+        os.environ.get("VERVAIN_GMX")
+        or (str(built) if built.exists() else None)
+        or shutil.which("gmx")
+        or shutil.which("gmx_mpi")
+    )
     if not gmx:
         _line(BAD, "gmx", "not found — run: make gromacs")
         return

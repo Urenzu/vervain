@@ -3,7 +3,7 @@
 # The pipeline runs under WSL (Ubuntu). GROMACS and martinize2 both assume a
 # POSIX toolchain, so native Windows is not a supported path.
 
-VENV    ?= .venv
+VENV    ?= .venv-wsl
 PY      := $(VENV)/bin/python
 PIP     := $(VENV)/bin/pip
 PYPATH  := PYTHONPATH=sim
@@ -15,13 +15,9 @@ help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-$(PY):
-	python3 -m venv $(VENV)
-	$(PIP) install -q --upgrade pip
-
 .PHONY: setup
-setup: $(PY) ## Create the venv and install Python dependencies
-	$(PIP) install -q -r requirements.txt
+setup: ## Create the venv (on the Linux filesystem) and install dependencies
+	bash scripts/setup-env.sh
 
 .PHONY: gromacs
 gromacs: ## Build GROMACS with CUDA and AVX2 (long; the packaged one has neither)
@@ -38,6 +34,10 @@ structures: ## Download every structure in the catalogue
 .PHONY: catalogue
 catalogue: ## List the structure catalogue
 	@$(PYPATH) $(PY) -m vervain.structures list
+
+.PHONY: repair
+repair: ## Transplant a complete RBD into the spike trimer
+	@$(PYPATH) $(PY) -m vervain.repair rbd
 
 .PHONY: test
 test: ## Run the Python test suite

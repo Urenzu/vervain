@@ -28,7 +28,7 @@ say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 say "prerequisites"
 sudo -n apt-get update -qq
 sudo -n DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-  build-essential cmake ninja-build wget nvidia-cuda-toolkit
+  build-essential cmake ninja-build wget nvidia-cuda-toolkit libfftw3-dev
 
 
 # nvcc refuses host compilers newer than it knows about, and distributions ship
@@ -79,8 +79,9 @@ cmake .. -G Ninja \
   -DCMAKE_INSTALL_PREFIX="$PREFIX" \
   -DGMX_GPU=CUDA \
   -DCMAKE_CUDA_ARCHITECTURES="$CUDA_ARCH" \
-  -DGMX_SIMD=AVX2_256 \
-  -DGMX_BUILD_OWN_FFTW=ON \
+  -DGMX_SIMD="${GMX_SIMD:-AVX2_256}" \
+  -DGMX_BUILD_OWN_FFTW=OFF \
+  -DGMX_FFT_LIBRARY=fftw3 \
   -DGMX_MPI=OFF \
   -DGMX_OPENMP=ON \
   -DGMX_DOUBLE=OFF \

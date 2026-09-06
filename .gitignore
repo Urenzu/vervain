@@ -26,3 +26,4 @@ data/
 *.log
 step*.pdb
 \#*\#
+.venv-wsl
