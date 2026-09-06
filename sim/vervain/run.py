@@ -199,9 +199,10 @@ def run_pull(name: str, ns: float | None, gpu: bool = True) -> Path:
 
     out = stage("pull", work, mdp, eq, gpu=gpu)
     print(NL + "  " + str(work / "pull.xtc"))
-    force = work / "pullf.xvg"
-    if force.exists():
-        print("  " + str(force))
+    from vervain import pullcurve
+    found = pullcurve.find_outputs(work)
+    if found is not None:
+        print("  " + str(found[0]))
     return out
 
 

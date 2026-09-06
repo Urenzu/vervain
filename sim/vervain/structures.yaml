@@ -88,6 +88,72 @@ structures:
       at meaningful levels. B0AT1 is stripped before use; check that the ACE2
       TM helices remain reasonable without it.
 
+  # --- comparative series ---------------------------------------------------
+  # Added for the rupture-force assay: same protocol, same box, one thing
+  # changed. Every field below was checked against the RCSB entry API before it
+  # was written here rather than recalled — which caught two of my own errors,
+  # 7EKF being Alpha rather than Delta and 7C8D being a cat receptor rather
+  # than a variant.
+
+  7EKF:
+    name: Alpha (B.1.1.7) RBD bound to human ACE2
+    method: X-ray
+    resolution_a: 2.85
+    confidence: construct
+    source: "Han et al., Molecular insights into receptor binding of recent emerging SARS-CoV-2 variants. Nat Commun 2021"
+    doi: 10.1038/s41467-021-26401-w
+    used_for: >
+      First point in the variant series after wild type. N501Y in isolation, so
+      it separates that substitution's contribution from everything the later
+      variants pile on top of it.
+    caveats: >
+      Isolated RBD plus the ACE2 peptidase domain — no membrane, no full spike,
+      no glycan shield. Directly comparable to 6M0J, which is the entire point.
+
+  7V8B:
+    name: Delta (B.1.617.2) RBD bound to human ACE2
+    method: cryo-EM
+    resolution_a: 3.2
+    confidence: construct
+    source: "RCSB deposition 7V8B, local refinement of the S-Delta RBD/ACE2 interface. No primary paper: RCSB lists the citation as to be published."
+    doi: 10.2210/pdb7V8B/pdb
+    used_for: >
+      Second point in the series. L452R and T478K.
+    caveats: >
+      No peer-reviewed primary citation at time of writing, and the lowest
+      resolution of the four. Weigh any Delta result accordingly rather than
+      treating the series as uniform in quality.
+
+  7WBP:
+    name: Omicron RBD bound to human ACE2
+    method: X-ray
+    resolution_a: 3.0
+    confidence: construct
+    source: "Han et al., Receptor binding and complex structures of human ACE2 to spike RBD from Omicron and Delta SARS-CoV-2. Cell 2022"
+    doi: 10.1016/j.cell.2022.01.001
+    used_for: >
+      Third point, and the largest jump — roughly fifteen RBD substitutions at
+      once. If the assay cannot separate this from wild type it cannot separate
+      anything.
+    caveats: Same construct limitations as the rest of the series.
+
+  7C8D:
+    name: SARS-CoV-2 RBD bound to cat ACE2
+    method: cryo-EM
+    resolution_a: 3.0
+    confidence: direct
+    source: "Wu et al., Broad host range of SARS-CoV-2 and the molecular basis for SARS-CoV-2 binding to cat ACE2. Cell Discov 2020"
+    doi: 10.1038/s41421-020-00210-9
+    used_for: >
+      Host range rather than variant: the same viral RBD against a different
+      species' receptor. Pulled under an identical protocol it asks why some
+      hosts are susceptible and others are not, which is a different question
+      from why some variants spread.
+    caveats: >
+      Cat ACE2 differs from human at several interface positions, so this is
+      not a control for the variant series — it is a second axis. Do not mix
+      the two comparisons in one chart.
+
 # Structures we know we need and have not pinned yet.
 open_questions:
   - >
@@ -104,3 +170,11 @@ open_questions:
     Airway plasma membrane lipid composition. Every membrane in the pipeline
     depends on it and it is currently unsourced — the direct analogue of the
     compartment-volume liability in the old kinetic model.
+  - >
+    Other viruses, for breadth rather than depth. Verified as being what
+    they claim: 4HMG and 1RUZ influenza haemagglutinin, 1GC1 HIV gp120 with
+    CD4 (four chains, so it needs a chain selection), 4MMV prefusion RSV F.
+    Each is a receptor-engagement problem with the same shape as the one
+    already solved, so the pipeline should carry over unchanged. Not yet
+    added because none has been run, and an untested entry in a catalogue
+    is a claim rather than a record.

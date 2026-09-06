@@ -23,6 +23,13 @@ def catalogue() -> dict[str, dict[str, str]]:
 
 
 def test_every_structure_carries_provenance(catalogue):
+    """Every entry cites something, including the ones with no paper.
+
+    This caught a real omission: 7V8B has no primary publication, so the doi
+    field was simply left off. Every RCSB deposition has its own DOI
+    (10.2210/pdbXXXX/pdb), which is the correct citation in that case — the
+    absence of a paper is not an absence of a source.
+    """
     for pdb_id, body in catalogue.items():
         missing = REQUIRED_FIELDS - body.keys()
         assert not missing, f"{pdb_id} is missing {sorted(missing)}"

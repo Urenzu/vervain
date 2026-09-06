@@ -79,11 +79,28 @@ def _smooth(values: list[float], window: int) -> list[float]:
     return out
 
 
+def find_outputs(work: Path) -> tuple[Path, Path] | None:
+    """Locate the pull xvg pair.
+
+    `mdrun -deffnm pull` writes `pull_pullf.xvg`, not `pullf.xvg` — the deffnm
+    prefixes every output including these. Both spellings are checked so the
+    lookup does not depend on how the run happened to be invoked.
+    """
+    for force_name, coord_name in (
+        ("pull_pullf.xvg", "pull_pullx.xvg"),
+        ("pullf.xvg", "pullx.xvg"),
+    ):
+        force, coord = work / force_name, work / coord_name
+        if force.exists() and coord.exists():
+            return force, coord
+    return None
+
+
 def read_pull(work: Path, rate_nm_per_ns: float, smooth_window: int = 21) -> PullCurve | None:
-    force_file = work / "pullf.xvg"
-    coord_file = work / "pullx.xvg"
-    if not force_file.exists() or not coord_file.exists():
+    found = find_outputs(work)
+    if found is None:
         return None
+    force_file, coord_file = found
 
     ft, force_raw = read_xvg(force_file)
     xt, extension = read_xvg(coord_file)

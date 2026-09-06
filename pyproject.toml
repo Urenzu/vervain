@@ -1,7 +1,7 @@
 [project]
 name = "vervain"
-version = "0.1.0"
-description = "Kinetic simulation of SARS-CoV-2 infection in a single airway epithelial cell"
+version = "0.2.0"
+description = "Coarse-grained molecular dynamics of SARS-CoV-2 entry at an airway cell surface"
 requires-python = ">=3.11"
 
 [tool.setuptools.packages.find]
@@ -10,3 +10,7 @@ where = ["sim"]
 [tool.pytest.ini_options]
 pythonpath = ["sim"]
 testpaths = ["tests"]
+# .venv-wsl is a symlink into the Linux filesystem. Collected from Windows it
+# raises WinError 1920 before any test runs, which reads as a broken suite
+# rather than as a path pytest should not have followed.
+norecursedirs = [".venv", ".venv-wsl", "data", "web", ".git"]
