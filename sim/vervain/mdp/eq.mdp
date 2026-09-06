@@ -1,0 +1,37 @@
+; NPT equilibration with the protein restrained, so the solvent settles around
+; a fixed solute rather than dragging it.
+integrator             = md
+dt                     = 0.010          ; conservative while the box is still relaxing
+nsteps                 = 200000         ; 2 ns
+nstxout-compressed     = 5000
+nstlog                 = 5000
+nstenergy              = 5000
+cutoff-scheme          = Verlet
+nstlist                = 20
+ns_type                = grid
+pbc                    = xyz
+verlet-buffer-tolerance = 0.005
+
+coulombtype            = reaction-field
+rcoulomb               = 1.1
+epsilon_r              = 15
+epsilon_rf             = 0
+vdw-type               = cutoff
+vdw-modifier           = Potential-shift-verlet
+rvdw                   = 1.1
+
+tcoupl                 = v-rescale
+tc-grps                = Protein Solvent
+tau_t                  = 1.0 1.0
+ref_t                  = 310 310
+
+pcoupl                 = c-rescale
+pcoupltype             = isotropic
+tau_p                  = 4.0
+compressibility        = 3e-4
+ref_p                  = 1.0
+
+gen_vel                = yes
+gen_temp               = 310
+refcoord_scaling       = all
+define                 = -DPOSRES

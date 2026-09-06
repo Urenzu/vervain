@@ -27,3 +27,4 @@ data/
 step*.pdb
 \#*\#
 .venv-wsl
+web/public/traj/

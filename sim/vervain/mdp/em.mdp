@@ -1,0 +1,19 @@
+; Steepest descent. This is what relaxes the graft seam and any overlap left by
+; solvation, before dynamics turns a bad contact into a crash.
+integrator             = steep
+nsteps                 = 10000
+emtol                  = 100.0
+emstep                 = 0.01
+cutoff-scheme          = Verlet
+nstlist                = 20
+ns_type                = grid
+pbc                    = xyz
+verlet-buffer-tolerance = 0.005
+
+coulombtype            = reaction-field
+rcoulomb               = 1.1
+epsilon_r              = 15
+epsilon_rf             = 0
+vdw-type               = cutoff
+vdw-modifier           = Potential-shift-verlet
+rvdw                   = 1.1

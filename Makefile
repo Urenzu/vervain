@@ -39,6 +39,25 @@ catalogue: ## List the structure catalogue
 repair: ## Transplant a complete RBD into the spike trimer
 	@$(PYPATH) $(PY) -m vervain.repair rbd
 
+.PHONY: forcefield
+forcefield: ## Download the pinned Martini 3 force-field files
+	@$(PYPATH) $(PY) -m vervain.forcefield fetch
+
+.PHONY: system
+system: ## Build the coarse-grained, solvated RBD-ACE2 system
+	@$(PYPATH) $(PY) -m vervain.system build
+
+.PHONY: simulate
+simulate: ## Minimise, equilibrate and run production
+	@$(PYPATH) $(PY) -m vervain.run all
+
+.PHONY: export
+export: ## Trajectory -> the binary the viewer reads
+	@$(PYPATH) $(PY) -m vervain.export
+
+.PHONY: first-light
+first-light: forcefield structures system simulate export ## The whole chain, end to end
+
 .PHONY: test
 test: ## Run the Python test suite
 	$(PYPATH) $(PY) -m pytest tests -q
