@@ -1,9 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { TrajectoryView } from "./render/TrajectoryView";
-import { loadManifest, type Manifest } from "./traj/manifest";
+import { flexColor, loadManifest, type ColorMode, type Manifest } from "./traj/manifest";
 
 const RATES = [1, 2, 5, 15] as const;
+
+// Each mode answers a different question about the same frame.
+const COLOR_MODES: Array<{ id: ColorMode; label: string; asks: string }> = [
+  { id: "chain", label: "chain", asks: "which molecule is which" },
+  { id: "chemistry", label: "chemistry", asks: "where the charge and the grease sit" },
+  { id: "flexibility", label: "motion", asks: "what actually moves over the run" },
+];
+
+function rgbCss([r, g, b]: [number, number, number]): string {
+  const to = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 255);
+  return `rgb(${to(r)}, ${to(g)}, ${to(b)})`;
+}
 
 function fmtTime(ps: number): string {
   if (ps >= 1e6) return `${(ps / 1e6).toFixed(2)} µs`;
@@ -18,6 +30,7 @@ export default function App() {
   const [playing, setPlaying] = useState(true);
   const [rate, setRate] = useState<number>(5);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const [colorMode, setColorMode] = useState<ColorMode>("flexibility");
 
   useEffect(() => {
     loadManifest()
@@ -88,7 +101,12 @@ export default function App() {
 
       <div className="body">
         <div className="stage">
-          <TrajectoryView manifest={manifest} frame={frame} hidden={hidden} />
+          <TrajectoryView
+            manifest={manifest}
+            frame={frame}
+            hidden={hidden}
+            colorMode={colorMode}
+          />
 
           {manifest && (
             <div className="readout">
@@ -166,6 +184,76 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+              </section>
+
+              <section className="rail__block">
+                <span className="block__label">Colour</span>
+                <div className="transport" style={{ flexWrap: "wrap" }}>
+                  {COLOR_MODES.map((mode) => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      className="btn"
+                      style={{ minWidth: "4rem" }}
+                      aria-pressed={colorMode === mode.id}
+                      title={mode.asks}
+                      onClick={() => setColorMode(mode.id)}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+
+                {colorMode === "chemistry" && (
+                  <div className="legend" style={{ marginTop: "0.75rem" }}>
+                    {Object.entries(manifest.chemistryPalette)
+                      .filter(([key]) => manifest.chemistry.includes(key))
+                      .map(([key, cls]) => (
+                        <div key={key} className="legend__row">
+                          <span
+                            className="legend__swatch"
+                            style={{ background: cls.color }}
+                            aria-hidden="true"
+                          />
+                          <span className="legend__name">{cls.label}</span>
+                          <span className="legend__figure">
+                            <span className="legend__count">
+                              {manifest.chemistry.filter((c) => c === key).length}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {colorMode === "flexibility" && (() => {
+                  const lo = Math.min(...manifest.rmsfNm);
+                  const hi = Math.max(...manifest.rmsfNm);
+                  const stops = [0, 0.25, 0.5, 0.75, 1];
+                  return (
+                    <div style={{ marginTop: "0.75rem" }}>
+                      <div style={{ display: "flex", height: "0.5rem" }}>
+                        {stops.map((t) => (
+                          <span
+                            key={t}
+                            style={{
+                              flex: 1,
+                              background: rgbCss(flexColor(lo + (hi - lo) * t, lo, hi)),
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <div className="block__readout" style={{ marginTop: "0.375rem" }}>
+                        <span className="block__unit">{lo.toFixed(2)} nm rigid</span>
+                        <span className="block__unit">mobile {hi.toFixed(2)} nm</span>
+                      </div>
+                      <p className="block__note">
+                        Root-mean-square fluctuation per bead, measured over the run
+                        after superposition — so this is flexibility, not tumbling.
+                      </p>
+                    </div>
+                  );
+                })()}
               </section>
 
               <section className="rail__block">

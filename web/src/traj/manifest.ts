@@ -18,6 +18,14 @@
 
 export const SCHEMA = "vervain.traj/1";
 
+/** How beads are coloured. Each says something different about the same frame. */
+export type ColorMode = "chain" | "chemistry" | "flexibility";
+
+export interface ChemistryClass {
+  label: string;
+  color: string;
+}
+
 export interface BeadGroup {
   name: string;
   description: string;
@@ -27,7 +35,7 @@ export interface BeadGroup {
   beadCount: number;
   /** Index of this group's first bead within a frame. */
   offset: number;
-  /** Bead radius in nm. MARTINI beads are ~0.26 nm; larger for coarser types. */
+  /** Fallback radius in nm, used only if per-bead radii are absent. */
   radiusNm: number;
 }
 
@@ -46,6 +54,37 @@ export interface Manifest {
   /** Path to the int16 position block, relative to the manifest. */
   positions: string;
   groups: BeadGroup[];
+
+  /** Per bead, in trajectory order. Read from the Martini topology: the force
+   *  field defines three bead sizes and a chemical class per type, and drawing
+   *  every bead identically throws both away. */
+  radiusNm: number[];
+  chemistry: string[];
+  chemistryPalette: Record<string, ChemistryClass>;
+  /** Root-mean-square fluctuation per bead, in nm, measured from this run
+   *  after superposition. This is what distinguishes a rigid core from a
+   *  mobile loop when every frame otherwise looks alike. */
+  rmsfNm: number[];
+}
+
+/** Rigid to mobile. Deliberately not a rainbow: a sequential quantity needs a
+ *  ramp that orders, and hue alone does not. Lightness climbs monotonically. */
+const FLEX_RAMP: Array<[number, number, number]> = [
+  [0.16, 0.20, 0.38],   // deep indigo — held in place
+  [0.20, 0.52, 0.66],
+  [0.42, 0.78, 0.66],
+  [0.95, 0.78, 0.35],
+  [1.0, 0.53, 0.24],    // hot amber — flapping
+];
+
+export function flexColor(value: number, lo: number, hi: number): [number, number, number] {
+  const t = hi > lo ? Math.min(1, Math.max(0, (value - lo) / (hi - lo))) : 0;
+  const scaled = t * (FLEX_RAMP.length - 1);
+  const i = Math.min(FLEX_RAMP.length - 2, Math.floor(scaled));
+  const f = scaled - i;
+  const a = FLEX_RAMP[i];
+  const b = FLEX_RAMP[i + 1];
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
 }
 
 const MANIFEST_URL = "/traj/manifest.json";

@@ -25,6 +25,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from vervain import beads as beadlib
 from vervain.structures import REPO_ROOT
 from vervain.system import SYSTEMS_DIR, _run, gmx_binary
 
@@ -137,6 +138,66 @@ def _groups_from_cg(work: Path, bead_total: int) -> list[BeadGroup]:
     return groups
 
 
+def _align_to_mean(frames, iterations: int = 2):
+    """Remove global rotation, so fluctuation means fluctuation.
+
+    Without this, a complex that tumbles rigidly reports large RMSF everywhere
+    and the map says nothing. Superposition is onto the *whole* complex rather
+    than each group separately, deliberately: aligning per group would hide the
+    RBD rocking against ACE2, which is exactly the motion worth seeing.
+    """
+    import numpy as np
+
+    reference = frames[0].copy()
+    for _ in range(iterations):
+        for i in range(len(frames)):
+            # Kabsch. Both are already centred, so only rotation is left.
+            covariance = frames[i].T @ reference
+            u, _, vt = np.linalg.svd(covariance)
+            # Guard against a reflection: an improper rotation would mirror the
+            # structure and still minimise RMSD.
+            d = np.sign(np.linalg.det(u @ vt))
+            correction = np.diag([1.0, 1.0, d])
+            frames[i] = frames[i] @ (u @ correction @ vt)
+        reference = frames.mean(axis=0)
+    return frames
+
+
+def _rmsf(frames):
+    """Per-bead root-mean-square fluctuation about the mean position, in nm."""
+    import numpy as np
+
+    mean = frames.mean(axis=0)
+    return np.sqrt(((frames - mean) ** 2).sum(axis=-1).mean(axis=0))
+
+
+def _bead_properties(work: Path, groups: list[BeadGroup]) -> tuple[list[float], list[str], dict]:
+    """Radius and chemical class per bead, read from the Martini topologies."""
+    radii: list[float] = []
+    chemistry: list[str] = []
+
+    for index in range(len(groups)):
+        itp = work / f"molecule_{index}.itp"
+        if not itp.exists():
+            raise SystemExit(f"missing {itp.name}; cannot size or classify beads")
+        parsed = beadlib.read_topology(itp)
+        if len(parsed) != groups[index].beadCount:
+            raise SystemExit(
+                f"{itp.name} has {len(parsed)} beads but the group has "
+                f"{groups[index].beadCount}. Topology and coordinates disagree."
+            )
+        print(f"  {groups[index].name:<16}{beadlib.summarise(parsed)}")
+        radii.extend(bead.radius_nm for bead in parsed)
+        chemistry.extend(bead.chemistry for bead in parsed)
+
+    palette = {
+        key: {"label": label, "color": color}
+        for key, (label, color) in beadlib.CHEMISTRY.items()
+    }
+    palette["?"] = {"label": beadlib.UNKNOWN[0], "color": beadlib.UNKNOWN[1]}
+    return radii, chemistry, palette
+
+
 def export(name: str) -> Path:
     import MDAnalysis as mda
     import numpy as np
@@ -180,6 +241,12 @@ def export(name: str) -> Path:
             a, b = pos[slices[0]], pos[slices[1]]
             contacts.append(float(np.min(np.linalg.norm(a[:, None] - b[None], axis=-1))))
 
+    # Superpose before measuring anything: tumbling is not flexibility.
+    centred = _align_to_mean(centred)
+    fluctuation = _rmsf(centred)
+    print(f"  rmsf       {fluctuation.min():.3f}-{fluctuation.max():.3f} nm "
+          f"(median {float(np.median(fluctuation)):.3f})")
+
     extent = np.abs(centred).max(axis=(0, 1)) * 1.001  # a hair of headroom
     extent = np.maximum(extent, 1e-3)
 
@@ -211,6 +278,8 @@ def export(name: str) -> Path:
     positions = VIEWER_DIR / "positions.bin"
     positions.write_bytes(raw.tobytes())
 
+    radii, chemistry, palette = _bead_properties(work, groups)
+
     manifest = {
         "schema": SCHEMA,
         "frameIntervalPs": interval,
@@ -221,13 +290,17 @@ def export(name: str) -> Path:
         "forceField": "Martini 3.0.0",
         "positions": positions.name,
         "groups": [asdict(g) for g in groups],
+        # Per bead, in trajectory order. Radius and chemistry come from the
+        # topology; flexibility is measured from this trajectory.
+        "radiusNm": [round(r, 4) for r in radii],
+        "chemistry": chemistry,
+        "chemistryPalette": palette,
+        "rmsfNm": [round(float(v), 4) for v in fluctuation],
     }
     (VIEWER_DIR / "manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
 
-    for g in groups:
-        print(f"  {g.name:<16}{g.beadCount:>6} beads   {g.color}")
     size_mb = positions.stat().st_size / 1024 / 1024
     print(f"\n  {positions}  ({size_mb:.1f} MB)")
     print(f"  {VIEWER_DIR / 'manifest.json'}")

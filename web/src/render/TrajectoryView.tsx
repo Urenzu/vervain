@@ -17,12 +17,13 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 
-import { decodeFrame, type Manifest } from "../traj/manifest";
+import { decodeFrame, flexColor, type ColorMode, type Manifest } from "../traj/manifest";
 
 interface Props {
   manifest: Manifest | null;
   frame: number;
   hidden: ReadonlySet<string>;
+  colorMode: ColorMode;
 }
 
 function token(name: string, fallback: number): number {
@@ -41,15 +42,17 @@ function token(name: string, fallback: number): number {
   return a === 0 ? fallback : (r << 16) | (g << 8) | b;
 }
 
-export function TrajectoryView({ manifest, frame, hidden }: Props) {
+export function TrajectoryView({ manifest, frame, hidden, colorMode }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const positionsRef = useRef<Int16Array | null>(null);
   const frameRef = useRef(frame);
   const hiddenRef = useRef(hidden);
+  const colorModeRef = useRef(colorMode);
   const manifestRef = useRef<Manifest | null>(manifest);
 
   frameRef.current = frame;
   hiddenRef.current = hidden;
+  colorModeRef.current = colorMode;
   manifestRef.current = manifest;
 
   // Fetch the position block once per manifest. It is the large asset; playback
@@ -115,13 +118,17 @@ export function TrajectoryView({ manifest, frame, hidden }: Props) {
     if (manifest) {
       span = Math.max(4, Math.max(...manifest.extentNm));
       for (const group of manifest.groups) {
-        // A couple of thousand beads is far too few to need impostors; real
-        // geometry is cheaper to reason about and reads better under AO.
-        const geometry = new THREE.SphereGeometry(group.radiusNm, 16, 12);
+        // A unit sphere scaled per instance, rather than one sized geometry
+        // per group. Martini 3 has three bead sizes — regular, small and tiny,
+        // measured here as 567/503/394 in ACE2 alone — and a single radius
+        // draws a third of them 12% wrong in each direction.
+        const geometry = new THREE.SphereGeometry(1, 16, 12);
         const material = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(group.color),
           roughness: 0.55,
           metalness: 0.0,
+          // White base: per-instance colour multiplies into it, so the tint has
+          // to come entirely from instanceColor.
+          color: 0xffffff,
         });
         const mesh = new THREE.InstancedMesh(geometry, material, group.beadCount);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -169,6 +176,36 @@ export function TrajectoryView({ manifest, frame, hidden }: Props) {
         composer = null;
       }
     }
+
+    // Colour is recomputed only when the mode changes; it is per bead and
+    // constant in time, so doing it per frame would be pure waste.
+    const tint = new THREE.Color();
+    const applyColors = (mode: ColorMode) => {
+      const m = manifestRef.current;
+      if (!m) return;
+      const lo = Math.min(...m.rmsfNm);
+      const hi = Math.max(...m.rmsfNm);
+
+      m.groups.forEach((group, gi) => {
+        const mesh = meshes[gi];
+        if (!mesh) return;
+        for (let i = 0; i < group.beadCount; i++) {
+          const bead = group.offset + i;
+          if (mode === "chain") {
+            tint.set(group.color);
+          } else if (mode === "chemistry") {
+            const cls = m.chemistryPalette[m.chemistry[bead]];
+            tint.set(cls ? cls.color : "#95918d");
+          } else {
+            const [r, g, b] = flexColor(m.rmsfNm[bead], lo, hi);
+            tint.setRGB(r, g, b);
+          }
+          mesh.setColorAt(i, tint);
+        }
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      });
+    };
+    let appliedMode: ColorMode | null = null;
 
     let theta = Math.PI / 4;
     let phi = 1.15;
@@ -247,8 +284,10 @@ export function TrajectoryView({ manifest, frame, hidden }: Props) {
           const mesh = meshes[gi];
           if (!mesh) return;
           for (let i = 0; i < group.beadCount; i++) {
-            const src = (group.offset + i) * 3;
+            const bead = group.offset + i;
+            const src = bead * 3;
             dummy.position.set(decoded[src], decoded[src + 1], decoded[src + 2]);
+            dummy.scale.setScalar(m.radiusNm[bead] ?? group.radiusNm);
             dummy.updateMatrix();
             mesh.setMatrixAt(i, dummy.matrix);
           }
@@ -280,6 +319,11 @@ export function TrajectoryView({ manifest, frame, hidden }: Props) {
         }
 
         lastDrawn = current;
+      }
+
+      if (appliedMode !== colorModeRef.current) {
+        applyColors(colorModeRef.current);
+        appliedMode = colorModeRef.current;
       }
 
       for (const mesh of meshes) mesh.visible = !hiddenRef.current.has(mesh.name);
