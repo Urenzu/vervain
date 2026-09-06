@@ -25,6 +25,38 @@ the parts that do not. Every driven step is labelled as driven.
 | membrane fusion | ms | steered, and see the MARTINI caveat below |
 | endocytosis | minutes | out of scope |
 
+## First light — measured
+
+The RBD-ACE2 complex from 6M0J, run end to end on a laptop RTX 3060 (6 GB) and
+an i7-11800H, with GROMACS 2025.2 built for CUDA and AVX2.
+
+| | |
+| --- | --- |
+| system | 13,467 beads — 1,937 protein, 11,164 water, 366 ions |
+| box | rhombic dodecahedron, 12.86 nm |
+| minimisation | 4.4 s |
+| equilibration | 2 ns restrained NPT, 101 s |
+| production | 50 ns in 2,269 s — **1,905 ns/day** |
+| exported | 1,001 frames, 11.1 MB after dropping water and quantising |
+
+**Interface stability.** Closest approach between ACE2 and the RBD held at
+0.30–0.39 nm across all 1,001 frames, against 0.36 nm in the coarse-grained
+starting structure and 0.41 nm Cα–Cα in the crystal. The complex stays bound
+over the simulated window.
+
+That number is computed and printed at export, not eyeballed. It is the
+difference between a bound complex and a dissociated one and it is invisible in
+a render — which matters, because the first version of the export *did* render
+a dissociated complex, and the cause was periodic wrapping rather than physics.
+See the export module for what `-pbc mol` does to a two-chain complex.
+
+**Where the time went.** GPU update is refused for Martini 3 proteins — virtual
+sites and triangle constraints — so integration runs on CPU while nonbonded and
+bonded work stays on the GPU. That is the configuration the 1,905 ns/day figure
+was measured in; a system without virtual sites would go faster still.
+
+---
+
 ## Stages
 
 ### 1 · Structures
