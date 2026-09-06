@@ -13,19 +13,59 @@ to keep observable names distinct from monomer names.
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 
 OBSERVABLE_PREFIX = "o_"
 
-# PySB shells out to BioNetGen for network generation; it must be findable.
-_BNG_DEFAULT = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-    ".venv", "Lib", "site-packages", "bionetgen", "bng-win",
-)
-os.environ.setdefault("BNGPATH", _BNG_DEFAULT)
+# The `bionetgen` wheel ships prebuilt binaries for all three platforms side by
+# side; pick the one matching the host.
+_BNG_PLATFORM_DIR = {
+    "linux": "bng-linux",
+    "darwin": "bng-mac",
+    "win32": "bng-win",
+}
+
+
+def _discover_bngpath() -> Path | None:
+    """Locate the BioNetGen binaries PySB shells out to for network generation.
+
+    Resolved from the installed `bionetgen` package rather than from a guessed
+    venv layout — site-packages sits at `lib/pythonX.Y/site-packages` on Linux
+    and macOS but `Lib/site-packages` on Windows, so path arithmetic from
+    __file__ is not portable.
+    """
+    subdir = _BNG_PLATFORM_DIR.get(sys.platform)
+    if subdir is None:
+        return None
+    try:
+        import bionetgen
+    except ImportError:
+        return None
+    candidate = Path(bionetgen.__file__).parent / subdir
+    return candidate if candidate.is_dir() else None
+
+
+def ensure_bngpath() -> str | None:
+    """Set BNGPATH if the environment has not already chosen one.
+
+    An explicit BNGPATH always wins, so a system BioNetGen install or a CI
+    override is respected.
+    """
+    if os.environ.get("BNGPATH"):
+        return os.environ["BNGPATH"]
+    found = _discover_bngpath()
+    if found is not None:
+        os.environ["BNGPATH"] = str(found)
+        return str(found)
+    return None
+
+
+ensure_bngpath()
 
 
 @dataclass(frozen=True)

@@ -10,26 +10,38 @@ loop. See [PLAN.md](PLAN.md) for the architecture and
 > productive/abortive boundary, but its numbers are not results. Calibration
 > against the datasets in `docs/validation.md` is the next milestone.
 
+## Platform
+
+**The backend is Linux-native.** Verified on Ubuntu 26.04 with CPython 3.14 using
+manylinux_2_28 wheels — no compiler and no system BioNetGen install required.
+macOS runs the same code path. The source has no Windows-specific assumptions and
+works there too, but Linux is the reference platform: it is what the numbers below
+were produced on and what CI should run.
+
+BioNetGen is a hard runtime dependency — PySB shells out to it to generate the
+reaction network, and cannot produce ODEs without it. The `bionetgen` wheel ships
+prebuilt binaries for all three platforms, and `ensure_bngpath()` in
+`sim/vervain/solve/engine.py` selects the right one at import time. Set `BNGPATH`
+only if you want to override that.
+
 ## Running it
 
-Two processes. Python solves; the browser draws.
-
 ```bash
-# once
-python -m venv .venv
-.venv/Scripts/python.exe -m pip install -r requirements.txt
-cd web && npm install && cd ..
+make setup        # venv + Python deps; prints the BioNetGen path it resolved
+make web-setup    # frontend deps
 
-# terminal 1 — solver + websocket server
-#   pre-solves the interferon slider grid on boot, so first start takes ~30 s
-PYTHONPATH=sim .venv/Scripts/python.exe -m vervain.server.app
-
-# terminal 2 — frontend
-cd web && npm run dev      # http://localhost:5173
+make serve        # terminal 1 — solver + websocket server (~30 s to pre-warm)
+make web          # terminal 2 — http://localhost:5173
 ```
 
-On Windows, `BNGPATH` must point at BioNetGen; `sim/vervain/solve/engine.py` sets
-it automatically to the copy bundled by the `bionetgen` pip package.
+Other targets:
+
+```bash
+make test         # Python test suite, including the parameter-provenance guarantees
+make typecheck    # frontend
+make check        # both — what CI runs
+make sweep        # interferon sweep printed against the published validation targets
+```
 
 Drag **interferon pretreatment**. Below ~10,000 ISG copies the cell goes
 productive and sheds virions from the apical surface; above ~20,000 it clears the
@@ -46,6 +58,7 @@ sim/vervain/
   solve/engine.py       PySB -> BioNetGen -> SBML -> libRoadRunner (CVODE / Gillespie)
   server/protocol.py    Seam A: the state frame. No coordinate crosses this line.
   server/app.py         websocket streaming, run cache, slider pre-warm
+  validate/sweep.py     the sweep, checked against docs/validation.md
 web/src/
   net/                  protocol mirror + client
   instancer/            Seam B: counts -> positions. The ONLY place a position is invented.
