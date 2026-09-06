@@ -1,0 +1,614 @@
+/* Hallmark · genre: atmospheric · scope: app (no macrostructure — instrument, not landing page)
+ * theme: custom-tuned "Vervain Black" (warm anchor ~60-80, near-black paper, amber signal accent)
+ * nav: N9 edge-aligned · footer: none (app scope)
+ * pre-emit critique: P4 H5 E4 S5 R4 V4
+ * contrast: pass (40-41) · tokens: pass (48) · chrome: pass (47) · honest: pass (46)
+ * mobile: pass (34, 49, 50-57) · slop: pass (42-45)
+ * note: species swatch colours come from SPECIES_STYLE in render/CellView.tsx — the
+ *       single source of truth shared with the WebGL scene. Data encoding, not chrome.
+ */
+
+/* ── tokens ─────────────────────────────────────────────────── */
+
+:root {
+  /* paper → ink. Anchored warm, toward the accent, so the ramp reads as black
+   * rather than as navy — chroma stays at 0.004-0.008 so the warmth is felt,
+   * not seen. Never zero-chroma (gate 22: flat greys read dead). */
+  --color-paper:      oklch(15%  0.006 60);
+  --color-paper-2:    oklch(19%  0.007 62);
+  --color-paper-3:    oklch(23%  0.008 64);
+  --color-rule:       oklch(31%  0.008 66);
+  --color-rule-2:     oklch(38%  0.009 68);
+  --color-muted:      oklch(66%  0.008 70);
+  --color-neutral:    oklch(73%  0.007 72);
+  --color-ink-2:      oklch(85%  0.005 75);
+  --color-ink:        oklch(96%  0.004 80);
+
+  /* one accent, warm signal — spent on focus, active tracks, readouts */
+  --color-accent:     oklch(80%  0.155 72);
+  --color-accent-ink: oklch(18%  0.030 72);
+  --color-focus:      oklch(80%  0.155 72);
+
+  /* outcome states — always carried with a label too, never colour alone */
+  --color-ok:         oklch(78%  0.170 150);
+  --color-warn:       oklch(80%  0.155 72);
+  --color-signal:     oklch(74%  0.160 50);
+  --color-hot:        oklch(70%  0.190 28);
+  --color-cool:       oklch(78%  0.120 235);
+
+  --font-display: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-body:    "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --text-2xs:   0.6875rem;
+  --text-xs:    0.75rem;
+  --text-sm:    0.8125rem;
+  --text-base:  0.875rem;
+  --text-md:    1rem;
+  --text-clock: clamp(1.75rem, 2.4vw + 1rem, 2.75rem);
+
+  --lh-tight:   1.05;
+  --lh-snug:    1.25;
+  --lh-normal:  1.55;
+
+  --tracking-display: -0.028em;
+  --tracking-tight:   -0.012em;
+  --tracking-label:    0.14em;
+
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs:  0.5rem;
+  --space-sm:  0.75rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2.5rem;
+
+  --rule-hair: 1px;
+  --radius-input: 2px;
+  --radius-pill:  2px;
+
+  --rail-width:    21rem;
+  --header-height: 3.25rem;
+
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+
+  --z-base:   1;
+  --z-raised: 10;
+
+  color-scheme: dark;
+}
+
+/* ── reset and page ─────────────────────────────────────────── */
+
+html,
+body {
+  overflow-x: clip;                    /* gate 34 — clip, never hidden */
+  margin: 0;
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── shell ──────────────────────────────────────────────────── */
+
+.app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-paper);
+}
+
+/* N9 · edge-aligned minimal — wordmark hard-left, status hard-right, one hairline */
+.masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  min-height: var(--header-height);
+  padding: 0 var(--space-lg);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+  flex-shrink: 0;
+}
+
+.masthead__id {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.masthead__mark {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 600;
+  font-style: normal;                  /* gate 38a — headers stay roman */
+  letter-spacing: var(--tracking-display);
+  line-height: 1;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.masthead__bar {
+  width: var(--rule-hair);
+  height: 1.125rem;
+  background: var(--color-rule-2);
+  flex-shrink: 0;
+}
+
+.masthead__sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* ── link · a gauge, not a status chip ──────────────────────────
+ * One word in a fixed-width slot so the masthead edge never jitters,
+ * beside a 2px track that reads as the same instrument as the rail's
+ * sliders. No round dot, no pulse, no red/green pairing.
+ * ────────────────────────────────────────────────────────────── */
+
+.masthead__link {
+  display: flex;
+  align-items: center;                 /* gate 36 — mixed-height row */
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+.link__state {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  line-height: 1.2;                    /* gate 55 — caps never below 1.0 */
+  white-space: nowrap;
+  min-width: 3.75rem;                  /* holds the widest word: OFFLINE */
+  text-align: right;
+  color: var(--color-muted);
+}
+
+/* live is the ordinary case — it reads calm, it does not shout */
+.link__state--live    { color: var(--color-ink-2); }
+.link__state--offline { color: var(--color-hot); }
+
+.link__meter {
+  position: relative;
+  width: 1.75rem;
+  height: 2px;
+  flex-shrink: 0;
+  border-radius: var(--radius-input);
+  background: var(--color-rule);       /* the empty track */
+  overflow: hidden;
+}
+
+.link__meter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--color-neutral);
+  transform-origin: left center;
+}
+
+.link__meter--offline::after { transform: scaleX(0); }
+.link__meter--idle::after    { transform: scaleX(1); }
+
+.link__meter--live::after {
+  transform: scaleX(1);
+  background: var(--color-accent);
+}
+
+/* indeterminate: a segment seeking across the track while the socket opens */
+.link__meter--linking::after {
+  inset: 0 auto 0 0;
+  width: 40%;
+  animation: seek 1.4s var(--ease-in-out) infinite;
+}
+
+@keyframes seek {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(250%); }
+}
+
+.dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-muted);
+}
+
+/* ── screen-reader-only ─────────────────────────────────────── */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── body split ─────────────────────────────────────────────── */
+
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.stage {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  background: var(--color-paper);
+}
+
+.stage__canvas {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.stage__canvas:active { cursor: grabbing; }
+
+/* ── readout · the instrument's landmark ────────────────────── */
+
+.readout {
+  position: absolute;
+  left: var(--space-lg);
+  top: var(--space-lg);
+  z-index: var(--z-raised);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  pointer-events: none;
+}
+
+.readout__clock {
+  font-family: var(--font-mono);
+  font-size: var(--text-clock);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--lh-tight);
+  color: var(--color-ink);
+}
+
+.readout__state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-2xs) var(--space-xs);
+  border: var(--rule-hair) solid var(--color-rule-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.03em;
+  line-height: 1.3;
+  color: var(--color-ink-2);
+}
+
+.readout__regime {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: var(--color-muted);
+}
+
+/* ── provenance · flush strip, no floating card ─────────────── */
+
+.provenance {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-raised);
+  padding: var(--space-sm) var(--space-lg);
+  border-top: var(--rule-hair) solid var(--color-rule);
+  background: var(--color-paper);
+  font-size: var(--text-2xs);
+  line-height: var(--lh-normal);
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.provenance__lead {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.provenance__flag { color: var(--color-hot); }
+
+/* ── rail ───────────────────────────────────────────────────── */
+
+.rail {
+  width: var(--rail-width);
+  flex-shrink: 0;
+  border-left: var(--rule-hair) solid var(--color-rule);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* gate 9 — sections separate by rule, not by equal whitespace alone */
+.rail__block {
+  padding: var(--space-lg);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+
+/* gate 54 — label and heading stack in one column, never side by side */
+.block__label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: var(--color-muted);
+  margin-bottom: var(--space-xs);
+}
+
+.block__readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.block__value {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+
+.block__unit {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.02em;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.block__note {
+  margin: var(--space-sm) 0 0;
+  max-width: 52ch;                     /* gate 25 — measure stays readable */
+  font-size: var(--text-2xs);
+  line-height: var(--lh-normal);
+  color: var(--color-muted);
+}
+
+/* ── slider · full state discipline (gates 26, 39) ──────────── */
+
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 1.5rem;
+  margin: 0;
+  background: transparent;
+  border-radius: var(--radius-input);
+  outline: 2px solid transparent;      /* reserved — no geometry shift on focus */
+  outline-offset: 2px;
+  cursor: pointer;
+}
+
+.slider:focus { outline: 2px solid transparent; }
+
+/* gate 15 — focus rings appear instantly, never transition in */
+.slider:focus-visible { outline: 2px solid var(--color-focus); }
+
+.slider::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: var(--radius-input);
+  background: var(--color-rule-2);
+}
+
+.slider::-moz-range-track {
+  height: 2px;
+  border-radius: var(--radius-input);
+  background: var(--color-rule-2);
+}
+
+.slider::-moz-range-progress {
+  height: 2px;
+  border-radius: var(--radius-input);
+  background: var(--color-accent);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0.375rem;
+  height: 1.125rem;
+  margin-top: -0.5rem;
+  border: 0;
+  border-radius: var(--radius-input);
+  background: var(--color-accent);
+  transition: background-color var(--dur-micro) var(--ease-out),
+              height var(--dur-micro) var(--ease-out),
+              margin-top var(--dur-micro) var(--ease-out);
+}
+
+.slider::-moz-range-thumb {
+  width: 0.375rem;
+  height: 1.125rem;
+  border: 0;
+  border-radius: var(--radius-input);
+  background: var(--color-accent);
+  transition: background-color var(--dur-micro) var(--ease-out),
+              height var(--dur-micro) var(--ease-out);
+}
+
+.slider:hover::-webkit-slider-thumb { height: 1.375rem; margin-top: -0.625rem; }
+.slider:hover::-moz-range-thumb     { height: 1.375rem; }
+
+.slider:active::-webkit-slider-thumb { background: var(--color-ink); }
+.slider:active::-moz-range-thumb     { background: var(--color-ink); }
+
+.slider:disabled {
+  opacity: 0.55;                       /* three channels, not opacity alone */
+  cursor: not-allowed;
+}
+
+.slider:disabled::-webkit-slider-thumb { background: var(--color-neutral); }
+.slider:disabled::-moz-range-thumb     { background: var(--color-neutral); }
+
+/* ── legend · tabular spec sheet (F3) ───────────────────────── */
+
+.legend {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;   /* gate 50 */
+  align-items: center;
+  column-gap: var(--space-sm);
+}
+
+.legend__row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: var(--space-2xs) 0;
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+
+.legend__row:last-child { border-bottom: 0; }
+
+.legend__swatch {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend__name {
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
+  color: var(--color-ink-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend__figure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.legend__count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  color: var(--color-ink);
+}
+
+.legend__scale {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+/* ── colophon ───────────────────────────────────────────────── */
+
+.colophon {
+  margin-top: auto;
+  padding: var(--space-lg);
+  border-top: var(--rule-hair) solid var(--color-rule);
+  max-width: 52ch;
+  font-size: var(--text-2xs);
+  line-height: var(--lh-normal);
+  color: var(--color-muted);
+}
+
+.colophon code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  color: var(--color-ink-2);
+}
+
+/* ── responsive ─────────────────────────────────────────────── */
+
+@media (max-width: 60rem) {
+  .app {
+    position: static;
+    min-height: 100dvh;
+  }
+
+  .body { flex-direction: column; }
+
+  /* Cap the canvas so the controls stay reachable without a full-screen scroll. */
+  .stage {
+    flex: none;
+    height: 60dvh;
+    min-height: 20rem;
+  }
+
+  .rail {
+    width: 100%;
+    border-left: 0;
+    border-top: var(--rule-hair) solid var(--color-rule);
+    overflow-y: visible;
+  }
+}
+
+@media (max-width: 30rem) {
+  :root { --space-lg: 1rem; }
+
+  .masthead__bar,
+  .masthead__sub { display: none; }
+}
+
+/* ── reduced motion (gate 27) ───────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .link__meter--linking::after {
+    animation: none;
+    transform: translateX(60%);
+  }
+
+  .slider::-webkit-slider-thumb,
+  .slider::-moz-range-thumb { transition: none; }
+
+  .slider:hover::-webkit-slider-thumb { height: 1.125rem; margin-top: -0.5rem; }
+  .slider:hover::-moz-range-thumb     { height: 1.125rem; }
+}

@@ -8,3 +8,5 @@ web/dist/
 *.net
 .env
 web/tsconfig.tsbuildinfo
+.variate/
+.claude/

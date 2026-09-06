@@ -72,127 +72,145 @@ export default function App() {
   const outcome = useMemo(() => {
     if (!frame) return null;
     const f = frame.outcome_flags;
-    if (f.genome_cleared) return { label: "Abortive — genome cleared", color: "#4ade80" };
-    if (f.super_permissive) return { label: "Productive — super-permissive", color: "#f87171" };
-    if (f.releasing) return { label: "Productive — releasing virions", color: "#fb923c" };
-    if (f.dmv_established) return { label: "Replication established", color: "#fbbf24" };
-    return { label: "Early infection", color: "#93c5fd" };
+    // Every colour resolves to a named token — no inline values (gate 48).
+    if (f.genome_cleared) return { label: "Abortive · genome cleared", token: "--color-ok" };
+    if (f.super_permissive) return { label: "Productive · super-permissive", token: "--color-hot" };
+    if (f.releasing) return { label: "Productive · releasing virions", token: "--color-signal" };
+    if (f.dmv_established) return { label: "Replication established", token: "--color-warn" };
+    return { label: "Early infection", token: "--color-cool" };
   }, [frame]);
 
   const legend = meta?.rendered_species ?? [];
 
+  // One word per state, so the masthead's right edge never shifts. The long
+  // form is what a screen reader gets; the meter beside it is decorative.
+  const link =
+    status === "open"
+      ? running
+        ? { tone: "live", word: "live", full: "streaming from the solver" }
+        : { tone: "idle", word: "idle", full: "connected, run complete" }
+      : status === "connecting"
+        ? { tone: "linking", word: "linking", full: "connecting to the solver" }
+        : { tone: "offline", word: "offline", full: "solver offline — start sim/vervain/server/app.py" };
+
   return (
-    <div style={S.app}>
-      <header style={S.header}>
-        <div>
-          <h1 style={S.h1}>Vervain</h1>
-          <div style={S.sub}>SARS-CoV-2 in a single ciliated airway epithelial cell</div>
-        </div>
-        <div style={S.headerRight}>
-          <span style={{ ...S.dot, background: status === "open" ? "#4ade80" : "#f87171" }} />
-          <span style={S.status}>
-            {status === "open"
-              ? running
-                ? "streaming"
-                : "connected"
-              : status === "connecting"
-                ? "connecting to solver…"
-                : "solver offline — start sim/vervain/server/app.py"}
+    <div className="app">
+      <header className="masthead">
+        <div className="masthead__id">
+          <h1 className="masthead__mark">Vervain</h1>
+          <span className="masthead__bar" aria-hidden="true" />
+          <span className="masthead__sub">
+            SARS-CoV-2 in a single ciliated airway epithelial cell
           </span>
+        </div>
+        <div className="masthead__link" role="status">
+          <span className="sr-only">Solver link: {link.full}.</span>
+          <span className={`link__state link__state--${link.tone}`} aria-hidden="true">
+            {link.word}
+          </span>
+          <span className={`link__meter link__meter--${link.tone}`} aria-hidden="true" />
         </div>
       </header>
 
-      <div style={S.body}>
-        <div style={S.viewport}>
+      <div className="body">
+        <div className="stage">
           <CellView sceneRef={sceneRef} />
 
-          {/* Persistent, non-dismissible. Positions are invented; counts are not. */}
-          <div style={S.disclaimer}>
-            <strong style={{ color: "#fbbf24" }}>Positions are illustrative.</strong>{" "}
-            Molecule counts are modeled; where each sphere sits inside the cell is not.
-            {meta && (
-              <>
-                {" "}
-                <span style={{ color: "#f87171" }}>{meta.provenance.calibration}</span>
-              </>
-            )}
-          </div>
-
-          <div style={S.hud}>
-            <div style={S.hudTime}>{frame ? fmtTime(frame.t_sec) : "—"}</div>
+          <div className="readout">
+            <div className="readout__clock">{frame ? fmtTime(frame.t_sec) : "—"}</div>
             {outcome && (
-              <div style={{ ...S.outcome, color: outcome.color, borderColor: outcome.color }}>
+              <div className="readout__state">
+                <span
+                  className="dot"
+                  style={{ background: `var(${outcome.token})` }}
+                  aria-hidden="true"
+                />
                 {outcome.label}
               </div>
             )}
-            {frame && (
-              <div style={S.regime}>
-                solver: {frame.regime.toUpperCase()}
-              </div>
-            )}
+            {frame && <div className="readout__regime">solver · {frame.regime}</div>}
           </div>
+
+          {/* Persistent, non-dismissible. Positions are invented; counts are not. */}
+          <p className="provenance">
+            <span className="provenance__lead">Positions are illustrative.</span> Molecule
+            counts are modeled; where each sphere sits inside the cell is not.
+            {meta && <span className="provenance__flag"> {meta.provenance.calibration}</span>}
+          </p>
         </div>
 
-        <aside style={S.panel}>
-          <section style={S.section}>
-            <label style={S.label}>
+        <aside className="rail">
+          <section className="rail__block">
+            <label className="block__label" htmlFor="ifn">
               Interferon pretreatment
-              <span style={S.value}>{fmtCount(ifn)} ISG copies</span>
             </label>
+            <div className="block__readout">
+              <span className="block__value">{fmtCount(ifn)}</span>
+              <span className="block__unit">ISG copies</span>
+            </div>
             <input
+              id="ifn"
+              className="slider"
               type="range"
               min={0}
               max={IFN_MAX}
               step={500}
               value={ifn}
               onChange={(e) => setIfn(Number(e.target.value))}
-              style={S.slider}
             />
-            <div style={S.hint}>
-              Drag across ~10k and the outcome flips from productive infection to
-              abortive. The cell clears the genome via RNase L before replication
-              establishes.
-            </div>
+            <p className="block__note">
+              Drag across ~10k and the outcome flips from productive infection to abortive.
+              The cell clears the genome via RNase L before replication establishes.
+            </p>
           </section>
 
-          <section style={S.section}>
-            <label style={S.label}>
+          <section className="rail__block">
+            <label className="block__label" htmlFor="speed">
               Playback speed
-              <span style={S.value}>{(speed / 60).toFixed(0)}× sim-min / s</span>
             </label>
+            <div className="block__readout">
+              <span className="block__value">{(speed / 60).toFixed(0)}&times;</span>
+              <span className="block__unit">sim-min / s</span>
+            </div>
             <input
+              id="speed"
+              className="slider"
               type="range"
               min={300}
               max={7200}
               step={300}
               value={speed}
               onChange={(e) => setSpeed(Number(e.target.value))}
-              style={S.slider}
             />
           </section>
 
-          <section style={S.section}>
-            <div style={S.sectionTitle}>Molecular counts</div>
-            <div style={S.legend}>
+          <section className="rail__block">
+            <span className="block__label">Molecular counts</span>
+            <div className="legend">
               {legend.map((name) => {
                 const style = SPECIES_STYLE[name];
                 const layer = sceneRef.current.layers.get(name);
                 const count = frame?.counts[name] ?? 0;
                 if (!style) return null;
                 return (
-                  <div key={name} style={S.legendRow}>
+                  <div key={name} className="legend__row">
                     <span
-                      style={{
-                        ...S.swatch,
-                        background: `#${style.color.toString(16).padStart(6, "0")}`,
-                      }}
+                      className="legend__swatch"
+                      // Species colours are the data encoding, shared with the WebGL
+                      // scene via SPECIES_STYLE — not chrome, so not a theme token.
+                      style={{ background: `#${style.color.toString(16).padStart(6, "0")}` }}
+                      aria-hidden="true"
                     />
-                    <span style={S.legendLabel}>{style.label}</span>
-                    <span style={S.legendCount}>{fmtCount(count)}</span>
-                    <span style={S.legendScale}>
-                      {layer && layer.moleculesPerInstance > 1
-                        ? `1 sphere ≈ ${fmtCount(layer.moleculesPerInstance)}`
-                        : ""}
+                    <span className="legend__name" title={style.label}>
+                      {style.label}
+                    </span>
+                    <span className="legend__figure">
+                      <span className="legend__count">{fmtCount(count)}</span>
+                      {layer && layer.moleculesPerInstance > 1 && (
+                        <span className="legend__scale">
+                          1 sphere &asymp; {fmtCount(layer.moleculesPerInstance)}
+                        </span>
+                      )}
                     </span>
                   </div>
                 );
@@ -200,8 +218,8 @@ export default function App() {
             </div>
           </section>
 
-          <section style={S.footnote}>
-            Counts come from a well-mixed kinetic model (PySB → libRoadRunner/CVODE).
+          <section className="colophon">
+            Counts come from a well-mixed kinetic model (PySB &rarr; libRoadRunner/CVODE).
             Every parameter is currently <em>estimated</em> and unverified against
             literature — see <code>docs/validation.md</code> for the calibration targets.
           </section>
@@ -210,78 +228,3 @@ export default function App() {
     </div>
   );
 }
-
-const mono = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-
-const S: Record<string, React.CSSProperties> = {
-  app: {
-    position: "fixed",
-    inset: 0,
-    display: "flex",
-    flexDirection: "column",
-    background: "#070910",
-    color: "#e6ebf5",
-    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "12px 18px",
-    borderBottom: "1px solid #1c2333",
-  },
-  h1: { margin: 0, fontSize: 18, letterSpacing: 0.5, fontWeight: 600 },
-  sub: { fontSize: 12, color: "#8b9ab8", marginTop: 2 },
-  headerRight: { display: "flex", alignItems: "center", gap: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4, display: "inline-block" },
-  status: { fontSize: 12, color: "#8b9ab8", fontFamily: mono },
-  body: { flex: 1, display: "flex", minHeight: 0 },
-  viewport: { flex: 1, position: "relative", minWidth: 0 },
-  disclaimer: {
-    position: "absolute",
-    left: 14,
-    bottom: 14,
-    right: 14,
-    fontSize: 11.5,
-    lineHeight: 1.5,
-    color: "#9fb0cf",
-    background: "rgba(7,9,16,0.82)",
-    border: "1px solid #1c2333",
-    borderRadius: 6,
-    padding: "8px 10px",
-    pointerEvents: "none",
-  },
-  hud: { position: "absolute", left: 14, top: 14, display: "flex", flexDirection: "column", gap: 8 },
-  hudTime: { fontFamily: mono, fontSize: 26, fontWeight: 600, letterSpacing: 1 },
-  outcome: {
-    fontSize: 12,
-    fontFamily: mono,
-    border: "1px solid",
-    borderRadius: 4,
-    padding: "3px 8px",
-    alignSelf: "flex-start",
-  },
-  regime: { fontSize: 11, fontFamily: mono, color: "#6b7a99" },
-  panel: {
-    width: 340,
-    borderLeft: "1px solid #1c2333",
-    padding: 16,
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: 20,
-  },
-  section: { display: "flex", flexDirection: "column", gap: 8 },
-  sectionTitle: { fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: "#8b9ab8" },
-  label: { fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "baseline" },
-  value: { fontFamily: mono, fontSize: 12, color: "#fbbf24" },
-  slider: { width: "100%", accentColor: "#fbbf24" },
-  hint: { fontSize: 11.5, color: "#7f8ea8", lineHeight: 1.5 },
-  legend: { display: "flex", flexDirection: "column", gap: 4 },
-  legendRow: { display: "flex", alignItems: "center", gap: 8, fontSize: 12 },
-  swatch: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
-  legendLabel: { flex: 1, color: "#c3cfe4", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  legendCount: { fontFamily: mono, color: "#e6ebf5", minWidth: 52, textAlign: "right" },
-  legendScale: { fontFamily: mono, fontSize: 10, color: "#6b7a99", minWidth: 74, textAlign: "right" },
-  footnote: { fontSize: 11, color: "#6b7a99", lineHeight: 1.6, borderTop: "1px solid #1c2333", paddingTop: 12 },
-};

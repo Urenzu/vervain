@@ -33,6 +33,48 @@ interface Props {
   sceneRef: React.MutableRefObject<VervainScene>;
 }
 
+// The scene borrows its ground and scaffold straight from the chrome tokens in
+// ui.css, so the canvas and the panel around it are one material system.
+// Three.js can't parse oklch(), so bounce each token through a 2d context,
+// which hands back an sRGB hex.
+// Measured sRGB for the ui.css tokens, so the fallback path lands on the same
+// warm near-black as the chrome rather than drifting to some other colour.
+const SCAFFOLD_FALLBACK = {
+  paper: 0x0d0b09,
+  rule: 0x33302c,
+  rule2: 0x46423d,
+  muted: 0x95918d,
+  neutral: 0xaaa7a3,
+};
+
+function readScaffold(): typeof SCAFFOLD_FALLBACK {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const root = getComputedStyle(document.documentElement);
+  const read = (token: string, fallback: number): number => {
+    const raw = root.getPropertyValue(token).trim();
+    if (!raw || !ctx) return fallback;
+    // Paint the token, then read the pixel back. Reading `fillStyle` is not
+    // enough: browsers hand back the original colour-function text for
+    // wide-gamut syntaxes, so an oklch() token never serialises to a hex.
+    // getImageData resolves it the only way that always works — to sRGB bytes.
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = raw;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+    return a === 0 ? fallback : (r << 16) | (g << 8) | b;
+  };
+  return {
+    paper: read("--color-paper", SCAFFOLD_FALLBACK.paper),
+    rule: read("--color-rule", SCAFFOLD_FALLBACK.rule),
+    rule2: read("--color-rule-2", SCAFFOLD_FALLBACK.rule2),
+    muted: read("--color-muted", SCAFFOLD_FALLBACK.muted),
+    neutral: read("--color-neutral", SCAFFOLD_FALLBACK.neutral),
+  };
+}
+
 export function CellView({ sceneRef }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
 
@@ -45,8 +87,9 @@ export function CellView({ sceneRef }: Props) {
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
 
+    const scaffold = readScaffold();
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b0e14);
+    scene.background = new THREE.Color(scaffold.paper);
 
     const camera = new THREE.PerspectiveCamera(
       45,
@@ -57,11 +100,13 @@ export function CellView({ sceneRef }: Props) {
     camera.position.set(3.6, 1.4, 3.6);
     camera.lookAt(0, 0, 0);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-    const key = new THREE.DirectionalLight(0xffffff, 1.1);
+    // Every light is neutral. A tinted rim shifts each sphere off the colour its
+    // legend swatch promises, so all the colour in frame comes from the species.
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const key = new THREE.DirectionalLight(0xffffff, 0.95);
     key.position.set(4, 6, 4);
     scene.add(key);
-    const rim = new THREE.DirectionalLight(0x88aaff, 0.5);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.25);
     rim.position.set(-4, -2, -3);
     scene.add(rim);
 
@@ -75,9 +120,9 @@ export function CellView({ sceneRef }: Props) {
     const cell = new THREE.Mesh(
       cellBox,
       new THREE.MeshStandardMaterial({
-        color: 0x2a3350,
+        color: scaffold.rule2,
         transparent: true,
-        opacity: 0.13,
+        opacity: 0.07,
         side: THREE.DoubleSide,
         depthWrite: false,
       }),
@@ -86,7 +131,7 @@ export function CellView({ sceneRef }: Props) {
     scene.add(cell);
     const edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(cellBox),
-      new THREE.LineBasicMaterial({ color: 0x5b6da8, transparent: true, opacity: 0.5 }),
+      new THREE.LineBasicMaterial({ color: scaffold.neutral, transparent: true, opacity: 0.3 }),
     );
     edges.position.copy(cell.position);
     scene.add(edges);
@@ -94,9 +139,9 @@ export function CellView({ sceneRef }: Props) {
     const nucleus = new THREE.Mesh(
       new THREE.SphereGeometry(g.nucleusR, 32, 24),
       new THREE.MeshStandardMaterial({
-        color: 0x3b4a7a,
+        color: scaffold.rule2,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.3,
         depthWrite: false,
       }),
     );
@@ -106,9 +151,9 @@ export function CellView({ sceneRef }: Props) {
     // Cilia on the apical surface — the only reason to know this is a ciliated
     // cell by looking at it.
     const ciliaMat = new THREE.LineBasicMaterial({
-      color: 0x6f86c9,
+      color: scaffold.muted,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.4,
     });
     const ciliaPts: number[] = [];
     for (let i = 0; i < 90; i++) {
@@ -233,5 +278,12 @@ export function CellView({ sceneRef }: Props) {
     };
   }, [sceneRef]);
 
-  return <div ref={mountRef} style={{ width: "100%", height: "100%", cursor: "grab" }} />;
+  return (
+    <div
+      ref={mountRef}
+      className="stage__canvas"
+      role="img"
+      aria-label="Three-dimensional view of a ciliated airway epithelial cell, with modeled molecular species rendered as spheres. Drag to orbit, scroll to zoom."
+    />
+  );
 }
