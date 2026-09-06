@@ -8,10 +8,12 @@ is not guessing:
 Water is dropped. It is 83% of the beads here and nothing is learned by drawing
 it — the same reduction every molecular viewer makes, for the same reason.
 
-Coordinates are quantised to int16 against the box. Float32 xyz for 11k beads
-over 400 frames is 53 MB; int16 halves that, and the quantisation error is
-about 0.4 pm on a 14 nm box, which is four orders of magnitude below the bead
-radius. Nothing visible is lost.
+Coordinates are quantised to int16 against the solute's own extent. Float32
+xyz for 2k beads over 1000 frames is 23 MB; int16 halves that, and the step is
+sub-picometre against a 0.47 nm bead — four orders of magnitude below anything
+visible. Scaling against the periodic box instead would be simpler and wrong:
+ACE2 plus the RBD is longer end to end than this box's short axis, so the
+extremities clip flat onto the boundary.
 
 What survives is the protein: roughly 2,300 beads, which streams as a few MB.
 """
@@ -54,11 +56,15 @@ class BeadGroup:
 
 
 def _protein_only_trajectory(work: Path) -> tuple[Path, Path]:
-    """A protein-only trajectory with periodic images made whole.
+    """A protein-only trajectory with each molecule made whole.
 
-    Without `-pbc mol` a molecule that straddles the boundary arrives split in
-    half, and the viewer faithfully draws it that way. `-center` keeps it in
-    frame instead of drifting out of view over the run.
+    `-pbc whole` and nothing else. The obvious choice, `-pbc mol -center`,
+    is wrong for a complex: it puts *each molecule's* centre inside the box
+    independently, so two bound chains can land in different periodic images.
+    The measured effect here was a 4.8 nm complex rendering 9.6 nm apart in
+    every frame — not drifting apart, which would be dissociation, but starting
+    apart, which is a wrapping artefact. Joining the groups is done in
+    `_join_groups` below, where the box vectors are available per frame.
     """
     gmx = gmx_binary()
     xtc = work / "md.xtc"
@@ -77,6 +83,30 @@ def _protein_only_trajectory(work: Path) -> tuple[Path, Path]:
           "-o", str(out_gro), "-pbc", "mol", "-center", "-dump", "0"],
          cwd=work, stdin="0\n0\n")
     return out_gro, out_xtc
+
+
+def _join_groups(positions, slices, box):
+    """Put every group in the same periodic image as the first.
+
+    `-pbc whole` keeps each molecule intact but says nothing about where the
+    molecules sit relative to one another. For a bound complex that matters
+    enormously: the RBD can be a full box-length away from the ACE2 it is
+    touching, and nothing downstream would flag it.
+
+    The fix is a minimum-image shift of each group's centroid against the
+    first group's. The box is a rhombic dodecahedron, so this has to go through
+    a triclinic-aware routine rather than a per-axis rounding.
+    """
+    from MDAnalysis.lib.distances import minimize_vectors
+    import numpy as np
+
+    reference = positions[slices[0]].mean(axis=0)
+    for sl in slices[1:]:
+        centroid = positions[sl].mean(axis=0)
+        delta = (centroid - reference).astype(np.float32)
+        wrapped = minimize_vectors(delta.reshape(1, 3), box=box)[0]
+        positions[sl] += wrapped - delta
+    return positions
 
 
 def _groups_from_cg(work: Path, bead_total: int) -> list[BeadGroup]:
@@ -122,35 +152,60 @@ def export(name: str) -> Path:
 
     # MDAnalysis works in angstrom; everything downstream is nm.
     box_nm = [float(v) / 10.0 for v in universe.dimensions[:3]]
-    half = np.array(box_nm) * 0.5
 
     print(f"exporting {name}")
     print(f"  frames     {frames}")
     print(f"  beads      {beads}")
     print(f"  box        {box_nm[0]:.2f} x {box_nm[1]:.2f} x {box_nm[2]:.2f} nm")
 
-    raw = np.empty((frames, beads, 3), dtype=np.int16)
-    times_ps: list[float] = []
-    clipped = 0
+    # Pass one: centre every frame on the solute and find the true extent.
+    # Quantising against the box instead looks equivalent and silently clips —
+    # ACE2 plus the RBD is longer end to end than this box's short axis, so the
+    # extremities would be flattened onto the boundary.
+    groups = _groups_from_cg(work, beads)
+    slices = [slice(g.offset, g.offset + g.beadCount) for g in groups]
 
+    centred = np.empty((frames, beads, 3), dtype=np.float32)
+    times_ps: list[float] = []
+    contacts: list[float] = []
     for i, ts in enumerate(universe.trajectory):
         times_ps.append(float(ts.time))
-        # Centre on the protein so the camera orbits the molecule rather than
-        # the corner of a box the viewer never sees.
-        pos = ts.positions / 10.0
-        pos = pos - pos.mean(axis=0)
+        pos = _join_groups(ts.positions.copy(), slices, ts.dimensions) / 10.0
+        centred[i] = pos - pos.mean(axis=0)
 
-        scaled = pos / half * INT16_MAX
-        clipped += int(np.count_nonzero(np.abs(scaled) > INT16_MAX))
-        raw[i] = np.clip(scaled, -INT16_MAX, INT16_MAX).astype(np.int16)
+        # Closest approach between the first two groups. Reported rather than
+        # assumed: this is what separates a complex that stayed bound from one
+        # that came apart, and the difference is not visible in a render.
+        if len(slices) >= 2:
+            a, b = pos[slices[0]], pos[slices[1]]
+            contacts.append(float(np.min(np.linalg.norm(a[:, None] - b[None], axis=-1))))
 
-    if clipped:
-        # Would mean the molecule is larger than the box it is centred in,
-        # which is a system-building problem, not an export one.
-        print(f"  WARNING    {clipped} coordinates clipped at the box edge")
+    extent = np.abs(centred).max(axis=(0, 1)) * 1.001  # a hair of headroom
+    extent = np.maximum(extent, 1e-3)
+
+    # Pass two: encode. Nothing can clip now by construction, so a nonzero
+    # count here would mean the extent calculation itself is wrong.
+    raw = np.clip(centred / extent * INT16_MAX, -INT16_MAX, INT16_MAX).astype(np.int16)
+    residual = float(np.abs(centred / extent).max())
+
+    print(f"  extent     {extent[0]:.2f} x {extent[1]:.2f} x {extent[2]:.2f} nm "
+          f"(half-widths)")
+    if residual > 1.0:
+        raise SystemExit(
+            f"quantisation overflow: max |scaled| = {residual:.4f}. "
+            "The extent calculation and the encode disagree."
+        )
+    # Worst-case error from int16 on the longest axis.
+    print(f"  precision  {float(extent.max()) / INT16_MAX * 1000:.4f} pm per step")
+
+    if contacts:
+        print(f"  contact    {min(contacts):.2f}-{max(contacts):.2f} nm closest approach "
+              f"between {groups[0].name} and {groups[1].name}")
+        if min(contacts) > 1.0:
+            print("  WARNING    the two groups never come within 1 nm — either the "
+                  "complex dissociated or they are in different periodic images")
 
     interval = (times_ps[1] - times_ps[0]) if len(times_ps) > 1 else 1.0
-    groups = _groups_from_cg(work, beads)
 
     VIEWER_DIR.mkdir(parents=True, exist_ok=True)
     positions = VIEWER_DIR / "positions.bin"
@@ -162,6 +217,7 @@ def export(name: str) -> Path:
         "frameCount": frames,
         "beadCount": beads,
         "boxNm": box_nm,
+        "extentNm": [float(v) for v in extent],
         "forceField": "Martini 3.0.0",
         "positions": positions.name,
         "groups": [asdict(g) for g in groups],

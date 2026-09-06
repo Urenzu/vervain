@@ -548,6 +548,91 @@ body {
   white-space: nowrap;
 }
 
+
+/* ── transport · the one button on the page ─────────────────── */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+  min-width: 4.5rem;
+  min-height: 1.875rem;
+  padding: 0 var(--space-sm);
+  border: var(--rule-hair) solid var(--color-rule-2);
+  border-radius: var(--radius-input);
+  background: var(--color-paper-2);
+  color: var(--color-ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  line-height: 1.2;
+  white-space: nowrap;                 /* gate 49 — never wraps */
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: background-color var(--dur-micro) var(--ease-out),
+              border-color var(--dur-micro) var(--ease-out),
+              color var(--dur-micro) var(--ease-out);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--color-paper-3);
+  border-color: var(--color-muted);
+}
+
+.btn:focus-visible { outline: 2px solid var(--color-focus); }
+
+.btn:active:not(:disabled) {
+  background: var(--color-rule);
+  color: var(--color-ink);
+}
+
+.btn[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.transport__rate {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+/* ── legend rows double as visibility toggles ───────────────── */
+
+.legend__row--button {
+  appearance: none;
+  border: 0;
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+  background: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.legend__row--button:focus-visible { outline: 2px solid var(--color-focus); }
+.legend__row--button:hover { background: var(--color-paper-2); }
+.legend__row--off { opacity: 0.4; }
+
 /* ── colophon ───────────────────────────────────────────────── */
 
 .colophon {

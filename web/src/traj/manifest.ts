@@ -9,7 +9,12 @@
 //
 // Positions are stored as one interleaved int16 block per frame:
 //   frame f, bead i  ->  offset ((f * beadCount) + i) * 3
-// Decode with:  nm = (raw / 32767) * 0.5 * boxLength + 0.5 * boxLength
+// Decode with:  nm = (raw / 32767) * extentNm[axis]
+//
+// The scale is the molecule's own half-extent, not the box's. Quantising
+// against the box looks equivalent and is not: a solute longer than the box
+// half-width has its extremities clipped flat onto the edge, and the periodic
+// box here is smaller in its short axis than ACE2 plus the RBD end to end.
 
 export const SCHEMA = "vervain.traj/1";
 
@@ -33,8 +38,10 @@ export interface Manifest {
   frameCount: number;
   /** Total beads per frame, after water is dropped. */
   beadCount: number;
-  /** Periodic box in nm, used to decode the quantised coordinates. */
+  /** Periodic box in nm. Informational — the simulation cell, not the scale. */
   boxNm: [number, number, number];
+  /** Half-extent the coordinates were quantised against, per axis, in nm. */
+  extentNm: [number, number, number];
   forceField: string;
   /** Path to the int16 position block, relative to the manifest. */
   positions: string;
@@ -73,14 +80,13 @@ export function decodeFrame(
   frame: number,
   out: Float32Array,
 ): void {
-  const { beadCount, boxNm } = manifest;
+  const { beadCount, extentNm } = manifest;
   const base = frame * beadCount * 3;
   for (let i = 0; i < beadCount; i++) {
     const src = base + i * 3;
     const dst = i * 3;
-    // Centre on the box so the camera orbits the system rather than a corner.
-    out[dst] = (raw[src] / 32767) * 0.5 * boxNm[0];
-    out[dst + 1] = (raw[src + 1] / 32767) * 0.5 * boxNm[1];
-    out[dst + 2] = (raw[src + 2] / 32767) * 0.5 * boxNm[2];
+    out[dst] = (raw[src] / 32767) * extentNm[0];
+    out[dst + 1] = (raw[src + 1] / 32767) * extentNm[1];
+    out[dst + 2] = (raw[src + 2] / 32767) * extentNm[2];
   }
 }
