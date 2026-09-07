@@ -55,6 +55,10 @@ simulate: ## Minimise, equilibrate and run production
 export: ## Trajectory -> the binary the viewer reads
 	@$(PYPATH) $(PY) -m vervain.export
 
+.PHONY: scene
+scene: structures ## Build the staged entry view from deposited structures
+	@$(PYPATH) $(PY) -m vervain.scene
+
 .PHONY: first-light
 first-light: forcefield structures system simulate export ## The whole chain, end to end
 

@@ -154,6 +154,66 @@ structures:
       not a control for the variant series — it is a second axis. Do not mix
       the two comparisons in one chart.
 
+  # --- entry-stage series ----------------------------------------------------
+  # The five stages of viral entry, each anchored to a measured structure. Used
+  # by vervain.scene to build the staged view; only stage 2 (6M0J, above) is
+  # simulated, the rest are posed from these coordinates.
+
+  6XR8:
+    name: SARS-CoV-2 spike, full-length prefusion trimer
+    method: cryo-EM
+    resolution_a: 2.90
+    confidence: direct
+    source: "Cai et al., Distinct conformational states of SARS-CoV-2 spike protein. Science 2020;369:1586"
+    doi: 10.2210/pdb6XR8/pdb
+    used_for: >
+      The "before" half of the fusion transition, and the approach stage. Unlike
+      the 6VSB/6VXX series this is full-length rather than a stabilised
+      ectodomain, so the stalk is present and it can be sat in a membrane.
+    caveats: >
+      No .pdb file is published — the entry exceeds the legacy format's limits,
+      so it is fetched as mmCIF. Deposition DOI recorded; the Science paper's
+      own DOI is not exposed by the RCSB entry API.
+      Measured here at 18.3 x 12.3 nm across 3,321 CA atoms, aspect 1.49.
+
+  6XRA:
+    name: SARS-CoV-2 spike S2, postfusion
+    method: cryo-EM
+    resolution_a: 3.00
+    confidence: direct
+    source: "Cai et al., Distinct conformational states of SARS-CoV-2 spike protein. Science 2020;369:1586"
+    doi: 10.2210/pdb6XRA/pdb
+    used_for: >
+      The "after" half. Pairs with 6XR8 from the same study and the same
+      construct, which makes the prefusion/postfusion comparison controlled
+      rather than assembled from two unrelated depositions.
+    caveats: >
+      The deposition titles of 6XR8 and 6XRA are identical and the entry API
+      reports the same residue counts, so which is which was settled by
+      measuring the coordinates rather than by reading the label: 1,044 CA
+      atoms in a 19.9 x 5.4 nm bundle, aspect 3.70. The threefold drop in
+      residue count is S1 having been shed, which is the event itself.
+      The path between these two states is NOT measured. Anything drawn
+      between them is an interpolation and must be labelled as one.
+
+  7MEQ:
+    name: Human TMPRSS2 protease, with nafamostat
+    method: X-ray
+    resolution_a: 1.95
+    confidence: direct
+    source: "Fraser et al., Structure and activity of human TMPRSS2 protease implicated in SARS-CoV-2 activation. Nat Chem Biol 2022;18:963"
+    doi: 10.2210/pdb7MEQ/pdb
+    used_for: >
+      The priming stage. TMPRSS2 is the host protease that cuts the spike at S2'
+      after receptor engagement and licenses fusion; without it entry takes the
+      slower endosomal route.
+    caveats: >
+      Crystallised as a zymogen-derived construct in complex with the inhibitor
+      nafamostat, so the bound state is a drug complex rather than a spike
+      encounter. No structure of TMPRSS2 engaging spike exists — the placement
+      in the staged view is a plausible pose, not a measured complex, and is
+      labelled as such.
+
 # Structures we know we need and have not pinned yet.
 open_questions:
   - >

@@ -216,6 +216,72 @@ impostor spheres (analytic ray–sphere in the fragment shader, two triangles pe
 bead), ambient occlusion, depth cueing. AO in particular is what makes a dense
 molecular scene legible rather than confetti.
 
+## The staged view
+
+The trajectory answers "what did the physics do". It cannot answer "what does
+viral entry look like", because entry takes seconds and MD reaches
+microseconds. Six to seven orders of magnitude; no hardware closes it.
+
+So the sequence is assembled rather than integrated, which is what the
+molecular-visualisation field has always done — real structures, placed at real
+scale, in the arrangement the evidence supports. The discipline that makes that
+honest rather than decorative is labelling every object with how well its
+placement is known:
+
+| class | means |
+| --- | --- |
+| `measured` | deposited coordinates; this is the experiment |
+| `simulated` | the motion came out of the integrator |
+| `posed` | real structures, plausible placement, no structure of the assembly exists |
+| `interpolated` | a path drawn between two measured endpoints |
+
+The viewer shows that class per object. An illustration that cannot separate
+its measurements from its guesses is worse than none, because it persuades
+either way.
+
+### The four stages
+
+| stage | structures | what is posed |
+| --- | --- | --- |
+| Approach | 6XR8 x24 on a 90 nm envelope | the whole arrangement — no structure of an intact virion at a membrane exists |
+| Attachment | 6M0J | only the membrane; the motion here is simulated |
+| Priming | 6XR8 + 7MEQ | TMPRSS2's position. No spike-protease complex has been solved |
+| Fusion | 6XR8 to 6XRA | the path. Both endpoints are measured |
+
+Coarse-graining is one bead per residue at the alpha carbon — deliberately
+coarser than the Martini beads of the simulated stage, because these are about
+arrangement at tens of nanometres. A whole virion at Martini resolution is tens
+of millions of beads and answers no question the alpha carbons do not.
+
+### Which of 6XR8 and 6XRA is which, measured
+
+Both depositions carry the identical title, and the RCSB entry API reports the
+same residue count for each. The pairing was settled by measuring the
+coordinates:
+
+| | CA atoms | length | width | aspect |
+| --- | --- | --- | --- | --- |
+| 6XR8 | 3,321 | 18.3 nm | 12.3 nm | 1.49 |
+| 6XRA | 1,044 | 19.9 nm | 5.4 nm | 3.70 |
+
+6XR8 is the prefusion cone, 6XRA the postfusion bundle. The threefold drop in
+residue count is not missing density — it is S1 having been shed, which is the
+event itself.
+
+### Two errors that rendered perfectly
+
+Both were caught by measurement, neither raised anything:
+
+**Spikes can point inward.** Orienting on the principal axis alone leaves which
+end faces out a coin flip, and an inverted spike is entirely convincing to look
+at. Fixed by orienting base-to-tip, where the base is the C-terminal stalk.
+Guarded by asserting RBD is further from the virion centre than S1, which is
+further than S2.
+
+**The scene was built z-up and the renderer is y-up.** A membrane in the x-y
+plane measures as a perfectly good membrane and draws as a vertical wall.
+Guarded by asserting the membrane's thinnest axis is y.
+
 ## Provenance rule
 
 The old repo's best idea was that no rate constant could appear without a

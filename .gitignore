@@ -28,3 +28,4 @@ step*.pdb
 \#*\#
 .venv-wsl
 web/public/traj/
+web/public/scene/

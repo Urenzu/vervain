@@ -163,6 +163,112 @@ body {
   min-width: 0;
 }
 
+/* ── object rows · the staged view's legend ─────────────────────
+ * Not .legend__row: that one is a subgrid cell and needs the .legend
+ * grid above it to size its columns. These rows carry an evidence
+ * badge instead of a bead count, so they get their own three-part
+ * layout — swatch, name, badge pushed right.
+ * ────────────────────────────────────────────────────────────── */
+
+.object__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-2xs) 0;
+  background: none;
+  border: 0;
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.object__row:last-of-type { border-bottom: 0; }
+.object__row:hover { background: var(--color-paper-2); }
+.object__row:focus-visible { outline: 2px solid var(--color-focus); }
+.object__row[aria-pressed="false"] { opacity: 0.4; }
+
+.object__swatch {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.object__name {
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
+  color: var(--color-ink-2);
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── view switch · two claims, two screens ──────────────────────
+ * The staged view and the trajectory are different kinds of assertion,
+ * so they get a real switch rather than a tab that implies one is a
+ * subset of the other. Sits between the mark and the link gauge.
+ * ────────────────────────────────────────────────────────────── */
+
+.masthead__views {
+  display: flex;
+  gap: var(--space-2xs, 0.25rem);
+  margin-left: auto;
+  margin-right: var(--space-sm, 0.75rem);
+  flex-shrink: 0;
+}
+
+/* ── evidence · the load-bearing label ──────────────────────────
+ * A badge saying how well we know that a thing is where it is drawn.
+ * Deliberately not colour-coded green-to-red: these are categories,
+ * not a quality ranking, and "posed" is not a failure. Weight and a
+ * tinted ground separate them; the accent is reserved for the one
+ * class that came out of the integrator.
+ * ────────────────────────────────────────────────────────────── */
+
+.evidence {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.36rem;
+  border-radius: 2px;
+  border: 1px solid var(--color-rule);
+  color: var(--color-muted);
+  background: var(--color-paper-2);
+  white-space: nowrap;
+}
+
+.evidence--measured {
+  color: var(--color-ink-2);
+  border-color: var(--color-rule-2);
+}
+
+.evidence--simulated {
+  color: var(--color-accent);
+  border-color: color-mix(in oklch, var(--color-accent) 40%, var(--color-rule));
+}
+
+.evidence--interpolated,
+.evidence--posed {
+  border-style: dashed;
+}
+
+.stage__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-lg, 2rem);
+  max-width: 46ch;
+}
+
 /* ── link · a gauge, not a status chip ──────────────────────────
  * One word in a fixed-width slot so the masthead edge never jitters,
  * beside a 2px track that reads as the same instrument as the rail's

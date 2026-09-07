@@ -66,6 +66,19 @@ def structure_path(pdb_id: str, ext: str = "pdb") -> Path:
     return STRUCTURE_DIR / f"{pdb_id.upper()}.{ext}"
 
 
+def local_path(pdb_id: str) -> Path | None:
+    """Whichever format of this entry is on disk, if either.
+
+    An entry too large for the legacy format is stored as mmCIF, so asking only
+    about .pdb reports a downloaded structure as missing.
+    """
+    for ext in ("pdb", "cif"):
+        candidate = structure_path(pdb_id, ext)
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def fetch(pdb_id: str, ext: str = "pdb", force: bool = False) -> Path:
     """Download a structure from RCSB. Returns the local path."""
     pdb_id = pdb_id.upper()
@@ -73,19 +86,39 @@ def fetch(pdb_id: str, ext: str = "pdb", force: bool = False) -> Path:
     if dest.exists() and not force:
         return dest
 
-    url = RCSB.format(pdb_id=pdb_id, ext=ext)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    req = urllib.request.Request(url, headers={"User-Agent": "vervain/0 (structure fetch)"})
-    try:
-        with urllib.request.urlopen(req, timeout=60) as response:
-            payload = response.read()
-    except urllib.error.HTTPError as exc:
-        raise SystemExit(f"{pdb_id}: RCSB returned HTTP {exc.code} for {url}") from exc
-    except urllib.error.URLError as exc:
-        raise SystemExit(f"{pdb_id}: could not reach RCSB ({exc.reason})") from exc
 
-    dest.write_bytes(payload)
-    return dest
+    # The legacy PDB format cannot hold an entry with more than 99,999 atoms or
+    # 62 chains, and RCSB simply does not publish a .pdb file for those. Whole
+    # assemblies — a full-length spike, anything virion-scale — routinely
+    # exceed it, so a 404 here is a format limit rather than a missing entry.
+    # mmCIF has no such ceiling and gemmi reads both.
+    attempts = [ext] if ext != "pdb" else ["pdb", "cif"]
+    last_error = ""
+    for candidate in attempts:
+        url = RCSB.format(pdb_id=pdb_id, ext=candidate)
+        target = structure_path(pdb_id, candidate)
+        if target.exists() and not force:
+            return target
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "vervain/0 (structure fetch)"}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as response:
+                payload = response.read()
+        except urllib.error.HTTPError as exc:
+            last_error = f"HTTP {exc.code} for {url}"
+            continue
+        except urllib.error.URLError as exc:
+            raise SystemExit(f"{pdb_id}: could not reach RCSB ({exc.reason})") from exc
+
+        if candidate != ext:
+            print(f"  {pdb_id}: no {ext} file published (too large for the format); "
+                  f"took {candidate} instead")
+        target.write_bytes(payload)
+        return target
+
+    raise SystemExit(f"{pdb_id}: RCSB returned {last_error}")
 
 
 def inspect(pdb_id: str) -> StructureReport:
@@ -96,8 +129,8 @@ def inspect(pdb_id: str) -> StructureReport:
     modelled or trimmed, and silently ignoring them puts holes in the protein),
     and how much of the glycan shield was resolved.
     """
-    path = structure_path(pdb_id)
-    if not path.exists():
+    path = local_path(pdb_id)
+    if path is None:
         raise SystemExit(f"{pdb_id}: not downloaded. Run: python -m vervain.structures fetch {pdb_id}")
 
     title_parts: list[str] = []
@@ -209,7 +242,7 @@ def _cmd_list() -> int:
     print(f"{'PDB':<6} {'res':>6}  {'confidence':<10} name")
     print("-" * 78)
     for pdb_id, body in entries.items():
-        local = "*" if structure_path(pdb_id).exists() else " "
+        local = "*" if local_path(pdb_id) else " "
         print(f"{pdb_id:<5}{local} {body.get('resolution_a', '-'):>6}  "
               f"{body.get('confidence', '-'):<10} {body.get('name', '')[:44]}")
     print("\n* = downloaded to data/structures/")

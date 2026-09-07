@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { EntryStages } from "./EntryStages";
 import { ForceCurve } from "./render/ForceCurve";
 import { TrajectoryView } from "./render/TrajectoryView";
 import { flexColor, loadManifest, type ColorMode, type Manifest } from "./traj/manifest";
@@ -32,6 +33,9 @@ export default function App() {
   const [rate, setRate] = useState<number>(5);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [colorMode, setColorMode] = useState<ColorMode>("flexibility");
+  // Two different claims about the world, so two views rather than one
+  // blended screen: the staged arrangement, and the integrated trajectory.
+  const [view, setView] = useState<"entry" | "trajectory">("entry");
 
   useEffect(() => {
     loadManifest()
@@ -91,6 +95,25 @@ export default function App() {
             Coarse-grained MD of SARS-CoV-2 entry
           </span>
         </div>
+        <div className="masthead__views">
+          <button
+            type="button"
+            className="btn"
+            aria-pressed={view === "entry"}
+            onClick={() => setView("entry")}
+          >
+            entry stages
+          </button>
+          <button
+            type="button"
+            className="btn"
+            aria-pressed={view === "trajectory"}
+            onClick={() => setView("trajectory")}
+          >
+            trajectory
+          </button>
+        </div>
+
         <div className="masthead__link" role="status">
           <span className="sr-only">Trajectory: {link.word}.</span>
           <span className={`link__state link__state--${link.tone}`} aria-hidden="true">
@@ -100,6 +123,7 @@ export default function App() {
         </div>
       </header>
 
+      {view === "entry" ? <EntryStages /> : (
       <div className="body">
         <div className="stage">
           <TrajectoryView
@@ -345,6 +369,7 @@ export default function App() {
           </section>
         </aside>
       </div>
+      )}
     </div>
   );
 }
