@@ -171,6 +171,40 @@ Environments live under `$HOME/.venvs` on the Linux side and are symlinked in;
 trajectories should go under `$VERVAIN_DATA` for the same reason, or GROMACS
 spends its time on I/O rather than on integration.
 
+### The VM shuts itself down under a long run
+
+The first 20 ns steered run died at 18.2 ns with no fatal error in `pull.log`,
+no stdout, and a `.xvg` truncated mid-number. Nothing was wrong with the
+physics: energies and constraint RMSD were healthy at the last logged step. WSL
+had torn the VM down underneath `mdrun` once the invoking shell went away —
+`uptime` after the fact read `up 0 min`. Anything longer than a few minutes
+needs the VM held open, or a `wsl --shutdown`-proof invocation; the checkpoint
+(`pull.cpt`) is what makes the loss recoverable rather than total.
+
+Both xvg readers already tolerated this by design — a short final line fails the
+two-column check, and mismatched file lengths are truncated to the shorter — so
+the curve parsed correctly from a file that had been cut off mid-write.
+
+### Steered result, measured
+
+| quantity | value |
+| --- | --- |
+| pull rate | 0.15 nm/ns |
+| rupture force | 333 pN, smoothed |
+| rupture time | 1.8 ns |
+| extension there | 4.43 nm |
+| interface contacts | 224 → 8 over 18 ns |
+
+The rupture force is an upper bound, not a binding free energy: 0.15 nm/ns is
+six or more orders of magnitude faster than any physical unbinding, so the
+number is only meaningful against another variant pulled identically.
+
+Closest approach is a poor readout for this. It moves from 0.30 to 0.47 nm
+across the entire run while the complex plainly comes apart, because a handful
+of beads keep grazing after the binding site has let go. The contact *count*
+carries the signal, and it is the one number in the viewer that visibly changes
+between the first frame and the last.
+
 ### 6 · Export and view
 
 Trajectory → compact binary → browser. The viewer keeps the existing React /

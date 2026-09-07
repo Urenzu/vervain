@@ -79,6 +79,12 @@ export interface Manifest {
    *  mobile loop when every frame otherwise looks alike. */
   rmsfNm: number[];
 
+  /** Bead pairs within contact range across the interface, one per frame.
+   *  The one quantity that visibly changes as a run proceeds: a render of two
+   *  proteins peeling apart looks much the same at the start and the end, and
+   *  this does not. */
+  contactCount?: number[];
+
   /** Absent for an equilibrium trajectory. */
   pull?: PullData;
 }

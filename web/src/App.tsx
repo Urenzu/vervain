@@ -187,6 +187,26 @@ export default function App() {
                 </div>
               </section>
 
+              {manifest.contactCount && (
+                <section className="rail__block">
+                  <span className="block__label">Interface</span>
+                  <div className="block__readout">
+                    <span className="block__value">
+                      {manifest.contactCount[Math.min(frame, manifest.contactCount.length - 1)]}
+                    </span>
+                    <span className="block__unit">
+                      contacts, from {manifest.contactCount[0]}
+                    </span>
+                  </div>
+                  <p className="block__note">
+                    Bead pairs closer than 0.6 nm across the two chains. The
+                    render changes little as the complex comes apart — a few
+                    residues keep grazing long after the binding site has let
+                    go — so this counts what the picture cannot show.
+                  </p>
+                </section>
+              )}
+
               {manifest.pull && (
                 <section className="rail__block">
                   <span className="block__label">Pull force</span>

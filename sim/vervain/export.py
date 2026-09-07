@@ -35,6 +35,11 @@ VIEWER_DIR = REPO_ROOT / "web" / "public" / "traj"
 
 INT16_MAX = 32767
 
+# Two Martini beads are in contact below this. It is a little over the
+# largest bead diameter (R, sigma 0.47 nm), so it counts pairs that are
+# touching rather than merely nearby.
+CONTACT_NM = 0.6
+
 # Host and virus, so the split carries meaning rather than just distinguishing
 # two blobs. Cool for the receptor, warm for the thing arriving.
 GROUP_STYLE = {
@@ -232,17 +237,28 @@ def export(name: str, stage: str = "md") -> Path:
     centred = np.empty((frames, beads, 3), dtype=np.float32)
     times_ps: list[float] = []
     contacts: list[float] = []
+    contact_counts: list[int] = []
     for i, ts in enumerate(universe.trajectory):
         times_ps.append(float(ts.time))
         pos = _join_groups(ts.positions.copy(), slices, ts.dimensions) / 10.0
         centred[i] = pos - pos.mean(axis=0)
 
-        # Closest approach between the first two groups. Reported rather than
-        # assumed: this is what separates a complex that stayed bound from one
-        # that came apart, and the difference is not visible in a render.
+        # Closest approach between the first two groups, and how many bead
+        # pairs are within contact range. Reported rather than assumed: this is
+        # what separates a complex that stayed bound from one that came apart,
+        # and the difference is not visible in a render.
+        #
+        # The count is the one that carries the signal under a pull. Closest
+        # approach barely moves even as the interface fails, because a handful
+        # of beads keep grazing each other long after the binding site has let
+        # go; the number of contacts falls by an order of magnitude over the
+        # same stretch. Reading only the distance says "still bound" for a
+        # complex that has already come apart.
         if len(slices) >= 2:
             a, b = pos[slices[0]], pos[slices[1]]
-            contacts.append(float(np.min(np.linalg.norm(a[:, None] - b[None], axis=-1))))
+            separation = np.linalg.norm(a[:, None] - b[None], axis=-1)
+            contacts.append(float(separation.min()))
+            contact_counts.append(int((separation < CONTACT_NM).sum()))
 
     # Superpose before measuring anything: tumbling is not flexibility.
     centred = _align_to_mean(centred)
@@ -271,6 +287,9 @@ def export(name: str, stage: str = "md") -> Path:
     if contacts:
         print(f"  contact    {min(contacts):.2f}-{max(contacts):.2f} nm closest approach "
               f"between {groups[0].name} and {groups[1].name}")
+        print(f"  interface  {contact_counts[0]} bead pairs within {CONTACT_NM} nm at the "
+              f"first frame, {contact_counts[-1]} at the last "
+              f"(peak {max(contact_counts)})")
         if min(contacts) > 1.0:
             print("  WARNING    the two groups never come within 1 nm — either the "
                   "complex dissociated or they are in different periodic images")
@@ -300,6 +319,11 @@ def export(name: str, stage: str = "md") -> Path:
         "chemistryPalette": palette,
         "rmsfNm": [round(float(v), 4) for v in fluctuation],
     }
+    # Per frame, so the viewer has one number that visibly changes as the run
+    # proceeds. Under a pull it falls by an order of magnitude while the render
+    # still looks like two proteins near each other.
+    if contact_counts:
+        manifest["contactCount"] = contact_counts
     # A pull is only half a result without the force it took. Resampled onto the
     # trajectory's own frame times so the viewer can show a marker moving along
     # the curve as the complex comes apart, rather than two unrelated plots.
